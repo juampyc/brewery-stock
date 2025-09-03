@@ -7,16 +7,21 @@
 
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
-    body { background: #0b0c10; color:#e8eaed; }
+    :root { color-scheme: dark; }
+    body { background:#0b0c10; color:#e8eaed; }
     .card { background:#111317; border-color:#2a2d33; }
     .table>:not(caption)>*>* { color:#e8eaed; border-color:#2a2d33; }
     .text-muted { color:#9aa0a6 !important; }
-    .status { display:none; }
+    .status { position:sticky; top:0; z-index:1056; display:none; }
     .status.show { display:block; }
+    .form-floating>label { color:#9aa0a6; }
+    .modal-content { background:#151821; color:#e8eaed; }
+    .btn-close.btn-close-white { filter: invert(1); }
   </style>
 </head>
 <body>
@@ -24,34 +29,35 @@
 
     <!-- Header -->
     <div class="text-center mb-2">
-      <!-- Si tenés el archivo del logo en la carpeta, dejá esta línea -->
-      <img src="./Logo Castelo.jpg" alt="Logo Castelo" style="max-height:110px" class="mb-2">
       <h1 class="h3">Stock Cervecería <span class="text-muted">Castelo / Big Rock</span></h1>
-      <p class="text-muted">Cargar producción e insumos. Ver stock y gráfico.</p>
+      <p class="text-muted">Cargar producción e insumos. Ver stock y gráficos.</p>
     </div>
 
-    <!-- Banner de estado -->
+    <!-- Banner de estado (sticky) -->
     <div id="status" class="alert status" role="alert"></div>
 
-    <!-- Botones de acción -->
+    <!-- Acciones principales -->
     <div class="d-flex gap-2 flex-wrap mb-3">
-      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalProduce">
-        Registrar producción
-      </button>
-      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalLabels">
-        Ingresar etiquetas
-      </button>
-      <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalEmpty">
-        Ingresar latas vacías
-      </button>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalProduce">Registrar producción</button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalLabels">Ingresar etiquetas</button>
+      <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalEmpty">Ingresar latas vacías</button>
+      <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalScrap">Scrap</button>
       <button id="btn-refresh" class="btn btn-outline-light ms-auto">Actualizar</button>
     </div>
 
-    <!-- Gráfico -->
+    <!-- Gráfico Terminados -->
     <div class="card mb-3">
       <div class="card-body">
-        <h5 class="card-title mb-3">Gráfico de stock – Terminados (barras apiladas)</h5>
+        <h5 class="card-title mb-3">Terminados por estilo (barras apiladas)</h5>
         <canvas id="chartFinished" height="120"></canvas>
+      </div>
+    </div>
+
+    <!-- Gráfico Etiquetas -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Etiquetas por estilo (barras apiladas)</h5>
+        <canvas id="chartLabels" height="120"></canvas>
       </div>
     </div>
 
@@ -94,7 +100,7 @@
   <!-- MODAL: Producción -->
   <div class="modal fade" id="modalProduce" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content bg-dark text-light">
+      <div class="modal-content">
         <form id="form-produce">
           <div class="modal-header">
             <h5 class="modal-title">Registrar producción</h5>
@@ -160,7 +166,7 @@
   <!-- MODAL: Etiquetas -->
   <div class="modal fade" id="modalLabels" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content bg-dark text-light">
+      <div class="modal-content">
         <form id="form-labels">
           <div class="modal-header">
             <h5 class="modal-title">Ingresar etiquetas</h5>
@@ -226,7 +232,7 @@
   <!-- MODAL: Latas vacías -->
   <div class="modal fade" id="modalEmpty" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-      <div class="modal-content bg-dark text-light">
+      <div class="modal-content">
         <form id="form-empty">
           <div class="modal-header">
             <h5 class="modal-title">Ingresar latas vacías</h5>
@@ -250,6 +256,114 @@
       </div>
     </div>
   </div>
+
+  <!-- MODAL: Scrap -->
+<div class="modal fade" id="modalScrap" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="form-scrap">
+        <div class="modal-header">
+          <h5 class="modal-title">Scrap</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <!-- Tipo de scrap -->
+          <div class="mb-3">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="scrapType" id="scrapFilled" value="filled" checked>
+              <label class="form-check-label" for="scrapFilled">Latas llenas</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="scrapType" id="scrapEmpty" value="empty">
+              <label class="form-check-label" for="scrapEmpty">Envases (latas vacías)</label>
+            </div>
+          </div>
+
+          <!-- Motivo (OBLIGATORIO) + detalle -->
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <div class="form-floating">
+                <select class="form-select" id="scrap-reason" name="reason" required>
+                  <option value="" selected disabled>Seleccioná un motivo…</option>
+                  <option value="Daño">Daño</option>
+                  <option value="Vencido">Vencido</option>
+                  <option value="Derrame">Derrame</option>
+                  <option value="Merma">Merma</option>
+                  <option value="Otro">Otro</option>
+                </select>
+                <label for="scrap-reason">Motivo</label>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="form-floating">
+                <input type="text" class="form-control" id="scrap-detail" name="detail" placeholder="Detalle (opcional)">
+                <label for="scrap-detail">Detalle (opcional)</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cantidades -->
+          <div id="scrap-filled-fields" class="row g-3">
+            <div class="col-md-6">
+              <h6>Castelo</h6>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-c-ipa"   name="Castelo|IPA"    value="0">
+                <label for="sf-c-ipa">IPA</label>
+              </div>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-c-kol"   name="Castelo|Kolsch" value="0">
+                <label for="sf-c-kol">Kolsch</label>
+              </div>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-c-por"   name="Castelo|Porter" value="0">
+                <label for="sf-c-por">Porter</label>
+              </div>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-c-hon"   name="Castelo|Honey"  value="0">
+                <label for="sf-c-hon">Honey</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <h6>Big Rock</h6>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-b-ipa"   name="Big Rock|IPA"    value="0">
+                <label for="sf-b-ipa">IPA</label>
+              </div>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-b-kol"   name="Big Rock|Kolsch" value="0">
+                <label for="sf-b-kol">Kolsch</label>
+              </div>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-b-por"   name="Big Rock|Porter" value="0">
+                <label for="sf-b-por">Porter</label>
+              </div>
+              <div class="form-floating mb-2">
+                <input type="number" min="0" class="form-control" id="sf-b-hon"   name="Big Rock|Honey"  value="0">
+                <label for="sf-b-hon">Honey</label>
+              </div>
+            </div>
+          </div>
+
+          <div id="scrap-empty-fields" class="row g-3" style="display:none">
+            <div class="col-12">
+              <div class="form-floating">
+                <input type="number" min="0" class="form-control" id="se-qty" name="qty" value="0">
+                <label for="se-qty">Cantidad de envases a descartar</label>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cerrar</button>
+          <button type="submit" class="btn btn-danger">Aplicar scrap</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
