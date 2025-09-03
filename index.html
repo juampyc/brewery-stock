@@ -1,54 +1,132 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Stock Cervecería – Producción y Materiales</title><link rel="stylesheet" href="./styles.css"/></head>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Cervecería – Producción y Materiales</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 <body>
-<header class="container"><h1>Stock Cervecería <span class="muted">Castelo / Big Rock</span></h1><p class="muted">Registrar producción diaria y administrar insumos.</p></header>
- <!-- 🔹 Banner de estado va acá, debajo del header -->
+  <header class="container">
+    <h1>Stock Cervecería <span class="muted">Castelo / Big Rock</span></h1>
+    <p class="muted">Registrar producción diaria y administrar insumos.</p>
+  </header>
+
+  <!-- 🔹 Banner de estado -->
   <div id="status" class="status hidden"></div>
-<main class="container">
-<section class="card"><h2>Producción (terminados ↑, etiquetas ↓, latas vacías ↓)</h2>
-<form id="form-produce"><div class="grid">
-<div class="grid-col"><h3>Castelo</h3>
-<label>IPA <input type="number" min="0" name="Castelo|IPA" value="0"></label>
-<label>Kolsch <input type="number" min="0" name="Castelo|Kolsch" value="0"></label>
-<label>Porter <input type="number" min="0" name="Castelo|Porter" value="0"></label>
-<label>Honey <input type="number" min="0" name="Castelo|Honey" value="0"></label></div>
-<div class="grid-col"><h3>Big Rock</h3>
-<label>IPA <input type="number" min="0" name="Big Rock|IPA" value="0"></label>
-<label>Kolsch <input type="number" min="0" name="Big Rock|Kolsch" value="0"></label>
-<label>Porter <input type="number" min="0" name="Big Rock|Porter" value="0"></label>
-<label>Honey <input type="number" min="0" name="Big Rock|Honey" value="0"></label></div>
-<div class="grid-col"><label>Nota <input type="text" name="note" placeholder="Lote, turno, etc."></label></div>
-</div><div class="actions"><button type="submit">Registrar producción</button><button type="reset" class="secondary">Limpiar</button></div></form></section>
 
-<section class="card"><h2>Ingreso de Etiquetas</h2>
-<form id="form-labels"><div class="grid">
-<div class="grid-col"><h3>Castelo</h3>
-<label>IPA <input type="number" min="0" name="Castelo|IPA" value="0"></label>
-<label>Kolsch <input type="number" min="0" name="Castelo|Kolsch" value="0"></label>
-<label>Porter <input type="number" min="0" name="Castelo|Porter" value="0"></label>
-<label>Honey <input type="number" min="0" name="Castelo|Honey" value="0"></label></div>
-<div class="grid-col"><h3>Big Rock</h3>
-<label>IPA <input type="number" min="0" name="Big Rock|IPA" value="0"></label>
-<label>Kolsch <input type="number" min="0" name="Big Rock|Kolsch" value="0"></label>
-<label>Porter <input type="number" min="0" name="Big Rock|Porter" value="0"></label>
-<label>Honey <input type="number" min="0" name="Big Rock|Honey" value="0"></label></div>
-<div class="grid-col"><label>Nota <input type="text" name="note" placeholder="Proveedor, compra, etc."></label></div>
-</div><div class="actions"><button type="submit">Ingresar etiquetas</button><button type="reset" class="secondary">Limpiar</button></div></form></section>
+  <main class="container">
+    <!-- Producción -->
+    <section class="card">
+      <h2>Producción (terminados ↑, etiquetas ↓, latas vacías ↓)</h2>
+      <form id="form-produce">
+        <div class="grid">
+          <div class="grid-col">
+            <h3>Castelo</h3>
+            <label>IPA <input type="number" min="0" name="Castelo|IPA" value="0"></label>
+            <label>Kolsch <input type="number" min="0" name="Castelo|Kolsch" value="0"></label>
+            <label>Porter <input type="number" min="0" name="Castelo|Porter" value="0"></label>
+            <label>Honey <input type="number" min="0" name="Castelo|Honey" value="0"></label>
+          </div>
+          <div class="grid-col">
+            <h3>Big Rock</h3>
+            <label>IPA <input type="number" min="0" name="Big Rock|IPA" value="0"></label>
+            <label>Kolsch <input type="number" min="0" name="Big Rock|Kolsch" value="0"></label>
+            <label>Porter <input type="number" min="0" name="Big Rock|Porter" value="0"></label>
+            <label>Honey <input type="number" min="0" name="Big Rock|Honey" value="0"></label>
+          </div>
+          <div class="grid-col">
+            <label>Nota <input type="text" name="note" placeholder="Lote, turno, etc."></label>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit">Registrar producción</button>
+          <button type="reset" class="secondary">Limpiar</button>
+        </div>
+      </form>
+    </section>
 
-<section class="card"><h2>Ingreso de Latas Vacías</h2>
-<form id="form-empty"><div class="grid">
-<label>Cantidad <input type="number" min="0" name="qty" value="0"></label>
-<label>Nota <input type="text" name="note" placeholder="Proveedor, compra, etc."></label>
-</div><div class="actions"><button type="submit">Ingresar latas vacías</button><button type="reset" class="secondary">Limpiar</button></div></form></section>
+    <!-- Ingreso de Etiquetas -->
+    <section class="card">
+      <h2>Ingreso de Etiquetas</h2>
+      <form id="form-labels">
+        <div class="grid">
+          <div class="grid-col">
+            <h3>Castelo</h3>
+            <label>IPA <input type="number" min="0" name="Castelo|IPA" value="0"></label>
+            <label>Kolsch <input type="number" min="0" name="Castelo|Kolsch" value="0"></label>
+            <label>Porter <input type="number" min="0" name="Castelo|Porter" value="0"></label>
+            <label>Honey <input type="number" min="0" name="Castelo|Honey" value="0"></label>
+          </div>
+          <div class="grid-col">
+            <h3>Big Rock</h3>
+            <label>IPA <input type="number" min="0" name="Big Rock|IPA" value="0"></label>
+            <label>Kolsch <input type="number" min="0" name="Big Rock|Kolsch" value="0"></label>
+            <label>Porter <input type="number" min="0" name="Big Rock|Porter" value="0"></label>
+            <label>Honey <input type="number" min="0" name="Big Rock|Honey" value="0"></label>
+          </div>
+          <div class="grid-col">
+            <label>Nota <input type="text" name="note" placeholder="Proveedor, compra, etc."></label>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit">Ingresar etiquetas</button>
+          <button type="reset" class="secondary">Limpiar</button>
+        </div>
+      </form>
+    </section>
 
-<section class="card"><div class="list-header"><h2>Stock actual</h2><div class="list-actions"><button id="btn-refresh" class="secondary">Actualizar</button></div></div>
-<div id="status" class="status hidden"></div>
-<div class="stocks">
-<div class="table-wrap"><h3>Terminados</h3><table><thead><tr><th>Marca</th><th>Estilo</th><th>OnHand</th></tr></thead><tbody id="tb-finished"><tr><td colspan="3" class="muted">Cargando…</td></tr></tbody></table></div>
-<div class="table-wrap"><h3>Etiquetas</h3><table><thead><tr><th>Marca</th><th>Estilo</th><th>OnHand</th></tr></thead><tbody id="tb-labels"><tr><td colspan="3" class="muted">Cargando…</td></tr></tbody></table></div>
-<div class="table-wrap"><h3>Latas vacías</h3><div id="empty-box" class="empty-box">Cargando…</div></div>
-</div></section>
-</main>
-<footer class="container small muted"><p>Configurá la URL de API en <code>app.js</code> y el ID en <code>apps_script_code.gs</code>.</p></footer>
-<script src="./app.js"></script></body></html>
+    <!-- Ingreso de Latas Vacías -->
+    <section class="card">
+      <h2>Ingreso de Latas Vacías</h2>
+      <form id="form-empty">
+        <div class="grid">
+          <label>Cantidad <input type="number" min="0" name="qty" value="0"></label>
+          <label>Nota <input type="text" name="note" placeholder="Proveedor, compra, etc."></label>
+        </div>
+        <div class="actions">
+          <button type="submit">Ingresar latas vacías</button>
+          <button type="reset" class="secondary">Limpiar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Stock actual -->
+    <section class="card">
+      <div class="list-header">
+        <h2>Stock actual</h2>
+        <div class="list-actions">
+          <button id="btn-refresh" class="secondary">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="stocks">
+        <div class="table-wrap">
+          <h3>Terminados</h3>
+          <table>
+            <thead><tr><th>Marca</th><th>Estilo</th><th>OnHand</th></tr></thead>
+            <tbody id="tb-finished"><tr><td colspan="3" class="muted">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <h3>Etiquetas</h3>
+          <table>
+            <thead><tr><th>Marca</th><th>Estilo</th><th>OnHand</th></tr></thead>
+            <tbody id="tb-labels"><tr><td colspan="3" class="muted">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <h3>Latas vacías</h3>
+          <div id="empty-box" class="empty-box">Cargando…</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container small muted">
+    <p>Configurá la URL de API en <code>app.js</code> y el ID en <code>apps_script_code.gs</code>.</p>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
