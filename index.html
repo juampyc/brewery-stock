@@ -3,132 +3,257 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stock Cervecería – Producción y Materiales</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <title>Stock Cervecería</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    body { background: #0b0c10; color:#e8eaed; }
+    .card { background:#111317; border-color:#2a2d33; }
+    .table>:not(caption)>*>* { color:#e8eaed; border-color:#2a2d33; }
+    .text-muted { color:#9aa0a6 !important; }
+    .status { display:none; }
+    .status.show { display:block; }
+  </style>
 </head>
 <body>
-  <header class="container" style="text-align:center">
-    <!-- 🔹 Logo de la cervecería -->
-    <img src="./logo_castelo.jpeg" alt="Logo Castelo" style="max-height:120px; margin-bottom:10px;">
-    <h1>Stock Cervecería <span class="muted">Castelo / Big Rock</span></h1>
-    <p class="muted">Registrar producción diaria y administrar insumos.</p>
-  </header>
+  <div class="container py-3">
 
-  <!-- 🔹 Banner de estado -->
-  <div id="status" class="status hidden"></div>
+    <!-- Header -->
+    <div class="text-center mb-2">
+      <!-- Si tenés el archivo del logo en la carpeta, dejá esta línea -->
+      <img src="./Logo Castelo.jpg" alt="Logo Castelo" style="max-height:110px" class="mb-2">
+      <h1 class="h3">Stock Cervecería <span class="text-muted">Castelo / Big Rock</span></h1>
+      <p class="text-muted">Cargar producción e insumos. Ver stock y gráfico.</p>
+    </div>
 
-  <main class="container">
-    <!-- Producción -->
-    <section class="card">
-      <h2>Producción (terminados ↑, etiquetas ↓, latas vacías ↓)</h2>
-      <form id="form-produce">
-        <div class="grid">
-          <div class="grid-col">
-            <h3>Castelo</h3>
-            <label>IPA <input type="number" min="0" name="Castelo|IPA" value="0"></label>
-            <label>Kolsch <input type="number" min="0" name="Castelo|Kolsch" value="0"></label>
-            <label>Porter <input type="number" min="0" name="Castelo|Porter" value="0"></label>
-            <label>Honey <input type="number" min="0" name="Castelo|Honey" value="0"></label>
-          </div>
-          <div class="grid-col">
-            <h3>Big Rock</h3>
-            <label>IPA <input type="number" min="0" name="Big Rock|IPA" value="0"></label>
-            <label>Kolsch <input type="number" min="0" name="Big Rock|Kolsch" value="0"></label>
-            <label>Porter <input type="number" min="0" name="Big Rock|Porter" value="0"></label>
-            <label>Honey <input type="number" min="0" name="Big Rock|Honey" value="0"></label>
-          </div>
-          <div class="grid-col">
-            <label>Nota <input type="text" name="note" placeholder="Lote, turno, etc."></label>
-          </div>
-        </div>
-        <div class="actions">
-          <button type="submit">Registrar producción</button>
-          <button type="reset" class="secondary">Limpiar</button>
-        </div>
-      </form>
-    </section>
+    <!-- Banner de estado -->
+    <div id="status" class="alert status" role="alert"></div>
 
-    <!-- Ingreso de Etiquetas -->
-    <section class="card">
-      <h2>Ingreso de Etiquetas</h2>
-      <form id="form-labels">
-        <div class="grid">
-          <div class="grid-col">
-            <h3>Castelo</h3>
-            <label>IPA <input type="number" min="0" name="Castelo|IPA" value="0"></label>
-            <label>Kolsch <input type="number" min="0" name="Castelo|Kolsch" value="0"></label>
-            <label>Porter <input type="number" min="0" name="Castelo|Porter" value="0"></label>
-            <label>Honey <input type="number" min="0" name="Castelo|Honey" value="0"></label>
-          </div>
-          <div class="grid-col">
-            <h3>Big Rock</h3>
-            <label>IPA <input type="number" min="0" name="Big Rock|IPA" value="0"></label>
-            <label>Kolsch <input type="number" min="0" name="Big Rock|Kolsch" value="0"></label>
-            <label>Porter <input type="number" min="0" name="Big Rock|Porter" value="0"></label>
-            <label>Honey <input type="number" min="0" name="Big Rock|Honey" value="0"></label>
-          </div>
-          <div class="grid-col">
-            <label>Nota <input type="text" name="note" placeholder="Proveedor, compra, etc."></label>
-          </div>
-        </div>
-        <div class="actions">
-          <button type="submit">Ingresar etiquetas</button>
-          <button type="reset" class="secondary">Limpiar</button>
-        </div>
-      </form>
-    </section>
+    <!-- Botones de acción -->
+    <div class="d-flex gap-2 flex-wrap mb-3">
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalProduce">
+        Registrar producción
+      </button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalLabels">
+        Ingresar etiquetas
+      </button>
+      <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalEmpty">
+        Ingresar latas vacías
+      </button>
+      <button id="btn-refresh" class="btn btn-outline-light ms-auto">Actualizar</button>
+    </div>
 
-    <!-- Ingreso de Latas Vacías -->
-    <section class="card">
-      <h2>Ingreso de Latas Vacías</h2>
-      <form id="form-empty">
-        <div class="grid">
-          <label>Cantidad <input type="number" min="0" name="qty" value="0"></label>
-          <label>Nota <input type="text" name="note" placeholder="Proveedor, compra, etc."></label>
-        </div>
-        <div class="actions">
-          <button type="submit">Ingresar latas vacías</button>
-          <button type="reset" class="secondary">Limpiar</button>
-        </div>
-      </form>
-    </section>
+    <!-- Gráfico -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Gráfico de stock – Terminados (barras apiladas)</h5>
+        <canvas id="chartFinished" height="120"></canvas>
+      </div>
+    </div>
 
-    <!-- Stock actual -->
-    <section class="card">
-      <div class="list-header">
-        <h2>Stock actual</h2>
-        <div class="list-actions">
-          <button id="btn-refresh" class="secondary">Actualizar</button>
+    <!-- Tablas -->
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">Terminados (latas)</h5>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead><tr><th>Marca</th><th>Estilo</th><th class="text-end">OnHand</th></tr></thead>
+                <tbody id="tb-finished"><tr><td colspan="3" class="text-muted">Cargando…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="stocks">
-        <div class="table-wrap">
-          <h3>Terminados</h3>
-          <table>
-            <thead><tr><th>Marca</th><th>Estilo</th><th>OnHand</th></tr></thead>
-            <tbody id="tb-finished"><tr><td colspan="3" class="muted">Cargando…</td></tr></tbody>
-          </table>
-        </div>
-        <div class="table-wrap">
-          <h3>Etiquetas</h3>
-          <table>
-            <thead><tr><th>Marca</th><th>Estilo</th><th>OnHand</th></tr></thead>
-            <tbody id="tb-labels"><tr><td colspan="3" class="muted">Cargando…</td></tr></tbody>
-          </table>
-        </div>
-        <div class="table-wrap">
-          <h3>Latas vacías</h3>
-          <div id="empty-box" class="empty-box">Cargando…</div>
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">Etiquetas</h5>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead><tr><th>Marca</th><th>Estilo</th><th class="text-end">OnHand</th></tr></thead>
+                <tbody id="tb-labels"><tr><td colspan="3" class="text-muted">Cargando…</td></tr></tbody>
+              </table>
+            </div>
+            <div class="mt-2">
+              <span class="text-muted">Latas vacías:</span>
+              <span id="empty-box" class="badge bg-light text-dark">Cargando…</span>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
-  </main>
+    </div>
 
-  <footer class="container small muted">
-    <p>Configurá la URL de API en <code>app.js</code> y el ID en <code>apps_script_code.gs</code>.</p>
-  </footer>
+  </div><!-- /container -->
 
+  <!-- MODAL: Producción -->
+  <div class="modal fade" id="modalProduce" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark text-light">
+        <form id="form-produce">
+          <div class="modal-header">
+            <h5 class="modal-title">Registrar producción</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <h6>Castelo</h6>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="c-ipa"   name="Castelo|IPA"    value="0">
+                  <label for="c-ipa">IPA</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="c-kol"   name="Castelo|Kolsch" value="0">
+                  <label for="c-kol">Kolsch</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="c-por"   name="Castelo|Porter" value="0">
+                  <label for="c-por">Porter</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="c-hon"   name="Castelo|Honey"  value="0">
+                  <label for="c-hon">Honey</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <h6>Big Rock</h6>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="b-ipa"   name="Big Rock|IPA"    value="0">
+                  <label for="b-ipa">IPA</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="b-kol"   name="Big Rock|Kolsch" value="0">
+                  <label for="b-kol">Kolsch</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="b-por"   name="Big Rock|Porter" value="0">
+                  <label for="b-por">Porter</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="b-hon"   name="Big Rock|Honey"  value="0">
+                  <label for="b-hon">Honey</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="form-floating">
+                  <input type="text" class="form-control" id="prod-note" name="note" placeholder="Nota">
+                  <label for="prod-note">Nota (opcional)</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cerrar</button>
+            <button type="submit" class="btn btn-success">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Etiquetas -->
+  <div class="modal fade" id="modalLabels" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark text-light">
+        <form id="form-labels">
+          <div class="modal-header">
+            <h5 class="modal-title">Ingresar etiquetas</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <h6>Castelo</h6>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lc-ipa"   name="Castelo|IPA"    value="0">
+                  <label for="lc-ipa">IPA</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lc-kol"   name="Castelo|Kolsch" value="0">
+                  <label for="lc-kol">Kolsch</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lc-por"   name="Castelo|Porter" value="0">
+                  <label for="lc-por">Porter</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lc-hon"   name="Castelo|Honey"  value="0">
+                  <label for="lc-hon">Honey</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <h6>Big Rock</h6>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lb-ipa"   name="Big Rock|IPA"    value="0">
+                  <label for="lb-ipa">IPA</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lb-kol"   name="Big Rock|Kolsch" value="0">
+                  <label for="lb-kol">Kolsch</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lb-por"   name="Big Rock|Porter" value="0">
+                  <label for="lb-por">Porter</label>
+                </div>
+                <div class="form-floating mb-2">
+                  <input type="number" min="0" class="form-control" id="lb-hon"   name="Big Rock|Honey"  value="0">
+                  <label for="lb-hon">Honey</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="form-floating">
+                  <input type="text" class="form-control" id="label-note" name="note" placeholder="Nota">
+                  <label for="label-note">Nota (opcional)</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cerrar</button>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Latas vacías -->
+  <div class="modal fade" id="modalEmpty" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark text-light">
+        <form id="form-empty">
+          <div class="modal-header">
+            <h5 class="modal-title">Ingresar latas vacías</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-floating mb-2">
+              <input type="number" min="0" class="form-control" id="empty-qty" name="qty" value="0" placeholder="Cantidad">
+              <label for="empty-qty">Cantidad</label>
+            </div>
+            <div class="form-floating">
+              <input type="text" class="form-control" id="empty-note" name="note" placeholder="Nota">
+              <label for="empty-note">Nota (opcional)</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cerrar</button>
+            <button type="submit" class="btn btn-secondary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- App -->
   <script src="./app.js"></script>
 </body>
 </html>
