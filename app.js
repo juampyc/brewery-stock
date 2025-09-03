@@ -1,5 +1,5 @@
 // Reemplazar por tu URL de Web App de Apps Script
-const API = 'https://script.google.com/macros/s/AKfycbwelmBTwB2ctPuEOSyiggZmo2T5AQKZ2oFp55lsUwHrHV6PJK_z25HF2t9W50PfzZg2/exec';
+const API = 'https://script.google.com/macros/s/AKfycbzT6SIJLlUFjv5Pkg91aB4VFjVX8Wrf5Hp8ja2wWAA0tigQJ99_gPsXfsK39yOGWf4p/exec';
 
 const $ = (s)=>document.querySelector(s);
 function showStatus(msg,type='info'){const el=$('#status');el.textContent=msg;el.classList.remove('hidden');el.className='status ' + (type==='error'?'err':(type==='ok'?'ok':'')); if(type!=='loading'){ setTimeout(()=>el.classList.add('hidden'),3000); }}
