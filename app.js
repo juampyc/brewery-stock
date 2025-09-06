@@ -70,6 +70,10 @@ document.getElementById("form-labels").addEventListener("submit", async ev=>{
 // === Latas vacías ===
 document.getElementById("form-empty").addEventListener("submit", async ev=>{
   ev.preventDefault();
+  const btn = ev.submitter; // el botón que disparó el submit
+  btn.disabled = true;
+  btn.textContent = "Guardando...";
+
   const payload={
     action:"empty_in",
     qty:Number(document.getElementById("empty-qty").value),
@@ -77,12 +81,18 @@ document.getElementById("form-empty").addEventListener("submit", async ev=>{
   };
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
+
   showStatus(d.ok?"Latas vacías ingresadas":"Error latas vacías",d.ok?"ok":"error");
+
   if(d.ok){
     const modalEl = document.getElementById("modalEmpty");
     const modal = bootstrap.Modal.getInstance(modalEl);
     modal.hide();
   }
+
+  // restaurar botón
+  btn.disabled = false;
+  btn.textContent = "Guardar";
 });
 
 // === Configuración estilos ===
