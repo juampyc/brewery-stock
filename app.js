@@ -7,7 +7,7 @@ function showStatus(msg, type='info'){
   if(type!=='info') setTimeout(()=>el.classList.remove("show"),2000);
 }
 
-// Tema
+// === Tema oscuro / claro ===
 document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("btn-theme").addEventListener("click",()=>{
     const link=document.getElementById("theme-style");
@@ -21,22 +21,70 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
 });
 
-// Producción
+// === Producción ===
 document.getElementById("form-produce").addEventListener("submit", async ev=>{
   ev.preventDefault();
   const payload={
     action:"batch_produce",
-    items:[{brand:document.getElementById("prod-brand").value,style:document.getElementById("prod-style").value,qty:Number(document.getElementById("prod-qty").value)}],
+    items:[{
+      brand:document.getElementById("prod-brand").value,
+      style:document.getElementById("prod-style").value,
+      qty:Number(document.getElementById("prod-qty").value)
+    }],
     state:document.getElementById("prod-state").value,
     consume:document.getElementById("consume-labels").checked,
     note:""
   };
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
-  showStatus(d.ok?"Producción ok":"Error","ok");
+  showStatus(d.ok?"Producción ok":"Error producción",d.ok?"ok":"error");
 });
 
-// Empaquetado
+// === Ingresar etiquetas ===
+document.getElementById("form-labels").addEventListener("submit", async ev=>{
+  ev.preventDefault();
+  const payload={
+    action:"labels_in",
+    items:[{
+      brand:document.getElementById("labels-brand").value,
+      style:document.getElementById("labels-style").value,
+      qty:Number(document.getElementById("labels-qty").value)
+    }],
+    note:""
+  };
+  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
+  const d=await r.json();
+  showStatus(d.ok?"Etiquetas ingresadas":"Error etiquetas",d.ok?"ok":"error");
+});
+
+// === Latas vacías ===
+document.getElementById("form-empty").addEventListener("submit", async ev=>{
+  ev.preventDefault();
+  const payload={
+    action:"empty_in",
+    qty:Number(document.getElementById("empty-qty").value),
+    note:""
+  };
+  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
+  const d=await r.json();
+  showStatus(d.ok?"Latas vacías ingresadas":"Error latas vacías",d.ok?"ok":"error");
+});
+
+// === Configuración estilos ===
+document.getElementById("form-config").addEventListener("submit", async ev=>{
+  ev.preventDefault();
+  const payload={
+    action:"config_add_style",
+    brand:document.getElementById("cfg-brand").value,
+    style:document.getElementById("cfg-style").value,
+    show:document.getElementById("cfg-show").checked
+  };
+  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
+  const d=await r.json();
+  showStatus(d.ok?"Estilo agregado":"Error config",d.ok?"ok":"error");
+});
+
+// === Empaquetado ===
 document.getElementById("form-pack").addEventListener("submit", async ev=>{
   ev.preventDefault();
   const payload={
@@ -51,40 +99,59 @@ document.getElementById("form-pack").addEventListener("submit", async ev=>{
   };
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
-  showStatus(d.ok?"Empaquetado ok":"Error empaquetado","ok");
+  showStatus(d.ok?"Empaquetado ok":"Error empaquetado",d.ok?"ok":"error");
 });
 
-// Charts (ejemplo simple)
+// === Scrap ===
+document.getElementById("form-scrap").addEventListener("submit", async ev=>{
+  ev.preventDefault();
+  const payload={
+    action:"adjust_finished",
+    brand:document.getElementById("scrap-brand").value,
+    style:document.getElementById("scrap-style").value,
+    delta:-Math.abs(Number(document.getElementById("scrap-qty").value)),
+    note:"Scrap"
+  };
+  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
+  const d=await r.json();
+  showStatus(d.ok?"Scrap aplicado":"Error scrap",d.ok?"ok":"error");
+});
+
+// === Cargar gráficos ===
 async function load(){
   const r=await fetch(API);
   const data=await r.json();
 
-  // Terminados
-  const ctx=document.getElementById("chartFinished");
-  new Chart(ctx,{type:"bar",data:{
-    labels:data.finished.map(r=>r.Style),
-    datasets:[{label:"Terminados",data:data.finished.map(r=>r.OnHand)}]
-  }});
+  new Chart(document.getElementById("chartFinished"),{
+    type:"bar",
+    data:{
+      labels:data.finished.map(r=>r.Style),
+      datasets:[{label:"Terminados",data:data.finished.map(r=>r.OnHand)}]
+    }
+  });
 
-  // Etiquetas
-  const ctx2=document.getElementById("chartLabels");
-  new Chart(ctx2,{type:"bar",data:{
-    labels:data.labels.map(r=>r.Style),
-    datasets:[{label:"Etiquetas",data:data.labels.map(r=>r.OnHand)}]
-  }});
+  new Chart(document.getElementById("chartLabels"),{
+    type:"bar",
+    data:{
+      labels:data.labels.map(r=>r.Style),
+      datasets:[{label:"Etiquetas",data:data.labels.map(r=>r.OnHand)}]
+    }
+  });
 
-  // Unlabeled
-  const ctx3=document.getElementById("chartUnlabeled");
-  new Chart(ctx3,{type:"bar",data:{
-    labels:data.unlabeled.map(r=>r.Style+"-"+(r.Pasteurized?"P":"NP")),
-    datasets:[{label:"Unlabeled",data:data.unlabeled.map(r=>r.OnHand)}]
-  }});
+  new Chart(document.getElementById("chartUnlabeled"),{
+    type:"bar",
+    data:{
+      labels:data.unlabeled.map(r=>r.Style+"-"+(r.Pasteurized?"P":"NP")),
+      datasets:[{label:"Unlabeled",data:data.unlabeled.map(r=>r.OnHand)}]
+    }
+  });
 
-  // Packed
-  const ctx4=document.getElementById("chartPacked");
-  new Chart(ctx4,{type:"bar",data:{
-    labels:data.packed.map(r=>r.Style+" x"+r.BoxSize),
-    datasets:[{label:"Cajas",data:data.packed.map(r=>r.OnHand)}]
-  }});
+  new Chart(document.getElementById("chartPacked"),{
+    type:"bar",
+    data:{
+      labels:data.packed.map(r=>r.Style+" x"+r.BoxSize),
+      datasets:[{label:"Cajas",data:data.packed.map(r=>r.OnHand)}]
+    }
+  });
 }
 load();

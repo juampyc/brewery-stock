@@ -66,6 +66,76 @@
     </div>
   </div>
 
+    <!-- Modal Ingresar Etiquetas -->
+  <div class="modal fade" id="modalLabels" tabindex="-1">
+    <div class="modal-dialog">
+      <form class="modal-content" id="form-labels">
+        <div class="modal-header"><h5>Ingresar etiquetas</h5></div>
+        <div class="modal-body">
+          <input type="text" class="form-control mb-2" id="labels-brand" placeholder="Marca">
+          <input type="text" class="form-control mb-2" id="labels-style" placeholder="Estilo">
+          <input type="number" class="form-control mb-2" id="labels-qty" placeholder="Cantidad">
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Latas Vacías -->
+  <div class="modal fade" id="modalEmpty" tabindex="-1">
+    <div class="modal-dialog">
+      <form class="modal-content" id="form-empty">
+        <div class="modal-header"><h5>Ingresar latas vacías</h5></div>
+        <div class="modal-body">
+          <input type="number" class="form-control mb-2" id="empty-qty" placeholder="Cantidad">
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-secondary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Config Estilos -->
+  <div class="modal fade" id="modalConfig" tabindex="-1">
+    <div class="modal-dialog">
+      <form class="modal-content" id="form-config">
+        <div class="modal-header"><h5>Configurar estilos</h5></div>
+        <div class="modal-body">
+          <input type="text" class="form-control mb-2" id="cfg-brand" placeholder="Marca">
+          <input type="text" class="form-control mb-2" id="cfg-style" placeholder="Estilo">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="cfg-show">
+            <label class="form-check-label" for="cfg-show">Mostrar siempre</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-warning">Agregar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Scrap -->
+  <div class="modal fade" id="modalScrap" tabindex="-1">
+    <div class="modal-dialog">
+      <form class="modal-content" id="form-scrap">
+        <div class="modal-header"><h5>Scrap</h5></div>
+        <div class="modal-body">
+          <input type="text" class="form-control mb-2" id="scrap-brand" placeholder="Marca">
+          <input type="text" class="form-control mb-2" id="scrap-style" placeholder="Estilo">
+          <input type="number" class="form-control mb-2" id="scrap-qty" placeholder="Cantidad a descartar">
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Aplicar scrap</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
   <!-- Modal Empaquetado -->
   <div class="modal fade" id="modalPack" tabindex="-1">
     <div class="modal-dialog">
