@@ -38,6 +38,11 @@ document.getElementById("form-produce").addEventListener("submit", async ev=>{
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
   showStatus(d.ok?"Producción ok":"Error producción",d.ok?"ok":"error");
+  if(d.ok){
+    const modalEl = document.getElementById("modalProduce");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+  }
 });
 
 // === Ingresar etiquetas ===
@@ -55,6 +60,11 @@ document.getElementById("form-labels").addEventListener("submit", async ev=>{
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
   showStatus(d.ok?"Etiquetas ingresadas":"Error etiquetas",d.ok?"ok":"error");
+  if(d.ok){
+    const modalEl = document.getElementById("modalLabels");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+  }
 });
 
 // === Latas vacías ===
@@ -68,6 +78,11 @@ document.getElementById("form-empty").addEventListener("submit", async ev=>{
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
   showStatus(d.ok?"Latas vacías ingresadas":"Error latas vacías",d.ok?"ok":"error");
+  if(d.ok){
+    const modalEl = document.getElementById("modalEmpty");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+  }
 });
 
 // === Configuración estilos ===
@@ -82,6 +97,11 @@ document.getElementById("form-config").addEventListener("submit", async ev=>{
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
   showStatus(d.ok?"Estilo agregado":"Error config",d.ok?"ok":"error");
+  if(d.ok){
+    const modalEl = document.getElementById("modalConfig");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+  }
 });
 
 // === Empaquetado ===
@@ -100,6 +120,11 @@ document.getElementById("form-pack").addEventListener("submit", async ev=>{
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
   showStatus(d.ok?"Empaquetado ok":"Error empaquetado",d.ok?"ok":"error");
+  if(d.ok){
+    const modalEl = document.getElementById("modalPack");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+  }
 });
 
 // === Scrap ===
@@ -115,6 +140,11 @@ document.getElementById("form-scrap").addEventListener("submit", async ev=>{
   const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
   const d=await r.json();
   showStatus(d.ok?"Scrap aplicado":"Error scrap",d.ok?"ok":"error");
+  if(d.ok){
+    const modalEl = document.getElementById("modalScrap");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+  }
 });
 
 // === Cargar gráficos ===
