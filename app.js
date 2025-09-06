@@ -21,10 +21,33 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
 });
 
-// === Producción ===
-document.getElementById("form-produce").addEventListener("submit", async ev=>{
+// === Función genérica para manejar formularios ===
+async function handleForm(ev, payloadBuilder, modalId, formId, successMsg, errorMsg){
   ev.preventDefault();
-  const payload={
+  const btn = ev.submitter;
+  btn.disabled = true;
+  btn.textContent = "Guardando...";
+
+  const payload = payloadBuilder();
+  const r = await fetch(API,{method:"POST",body:JSON.stringify(payload)});
+  const d = await r.json();
+
+  showStatus(d.ok ? successMsg : errorMsg, d.ok ? "ok" : "error");
+
+  if(d.ok){
+    const modalEl = document.getElementById(modalId);
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+    document.getElementById(formId).reset();
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Guardar";
+}
+
+// === Producción ===
+document.getElementById("form-produce").addEventListener("submit", ev=>{
+  handleForm(ev, ()=>({
     action:"batch_produce",
     items:[{
       brand:document.getElementById("prod-brand").value,
@@ -34,21 +57,12 @@ document.getElementById("form-produce").addEventListener("submit", async ev=>{
     state:document.getElementById("prod-state").value,
     consume:document.getElementById("consume-labels").checked,
     note:""
-  };
-  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
-  const d=await r.json();
-  showStatus(d.ok?"Producción ok":"Error producción",d.ok?"ok":"error");
-  if(d.ok){
-    const modalEl = document.getElementById("modalProduce");
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-  }
+  }), "modalProduce", "form-produce", "Producción ok", "Error producción");
 });
 
 // === Ingresar etiquetas ===
-document.getElementById("form-labels").addEventListener("submit", async ev=>{
-  ev.preventDefault();
-  const payload={
+document.getElementById("form-labels").addEventListener("submit", ev=>{
+  handleForm(ev, ()=>({
     action:"labels_in",
     items:[{
       brand:document.getElementById("labels-brand").value,
@@ -56,68 +70,31 @@ document.getElementById("form-labels").addEventListener("submit", async ev=>{
       qty:Number(document.getElementById("labels-qty").value)
     }],
     note:""
-  };
-  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
-  const d=await r.json();
-  showStatus(d.ok?"Etiquetas ingresadas":"Error etiquetas",d.ok?"ok":"error");
-  if(d.ok){
-    const modalEl = document.getElementById("modalLabels");
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-  }
+  }), "modalLabels", "form-labels", "Etiquetas ingresadas", "Error etiquetas");
 });
 
 // === Latas vacías ===
-document.getElementById("form-empty").addEventListener("submit", async ev=>{
-  ev.preventDefault();
-  const btn = ev.submitter; // el botón que disparó el submit
-  btn.disabled = true;
-  btn.textContent = "Guardando...";
-
-  const payload={
+document.getElementById("form-empty").addEventListener("submit", ev=>{
+  handleForm(ev, ()=>({
     action:"empty_in",
     qty:Number(document.getElementById("empty-qty").value),
     note:""
-  };
-  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
-  const d=await r.json();
-
-  showStatus(d.ok?"Latas vacías ingresadas":"Error latas vacías",d.ok?"ok":"error");
-
-  if(d.ok){
-    const modalEl = document.getElementById("modalEmpty");
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-  }
-
-  // restaurar botón
-  btn.disabled = false;
-  btn.textContent = "Guardar";
+  }), "modalEmpty", "form-empty", "Latas vacías ingresadas", "Error latas vacías");
 });
 
 // === Configuración estilos ===
-document.getElementById("form-config").addEventListener("submit", async ev=>{
-  ev.preventDefault();
-  const payload={
+document.getElementById("form-config").addEventListener("submit", ev=>{
+  handleForm(ev, ()=>({
     action:"config_add_style",
     brand:document.getElementById("cfg-brand").value,
     style:document.getElementById("cfg-style").value,
     show:document.getElementById("cfg-show").checked
-  };
-  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
-  const d=await r.json();
-  showStatus(d.ok?"Estilo agregado":"Error config",d.ok?"ok":"error");
-  if(d.ok){
-    const modalEl = document.getElementById("modalConfig");
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-  }
+  }), "modalConfig", "form-config", "Estilo agregado", "Error config");
 });
 
 // === Empaquetado ===
-document.getElementById("form-pack").addEventListener("submit", async ev=>{
-  ev.preventDefault();
-  const payload={
+document.getElementById("form-pack").addEventListener("submit", ev=>{
+  handleForm(ev, ()=>({
     action:"pack",
     brand:document.getElementById("pack-brand").value,
     style:document.getElementById("pack-style").value,
@@ -126,35 +103,18 @@ document.getElementById("form-pack").addEventListener("submit", async ev=>{
     source:document.getElementById("pack-source").value,
     withLabels:document.getElementById("pack-withlabels").checked,
     note:document.getElementById("pack-note").value
-  };
-  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
-  const d=await r.json();
-  showStatus(d.ok?"Empaquetado ok":"Error empaquetado",d.ok?"ok":"error");
-  if(d.ok){
-    const modalEl = document.getElementById("modalPack");
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-  }
+  }), "modalPack", "form-pack", "Empaquetado ok", "Error empaquetado");
 });
 
 // === Scrap ===
-document.getElementById("form-scrap").addEventListener("submit", async ev=>{
-  ev.preventDefault();
-  const payload={
+document.getElementById("form-scrap").addEventListener("submit", ev=>{
+  handleForm(ev, ()=>({
     action:"adjust_finished",
     brand:document.getElementById("scrap-brand").value,
     style:document.getElementById("scrap-style").value,
     delta:-Math.abs(Number(document.getElementById("scrap-qty").value)),
     note:"Scrap"
-  };
-  const r=await fetch(API,{method:"POST",body:JSON.stringify(payload)});
-  const d=await r.json();
-  showStatus(d.ok?"Scrap aplicado":"Error scrap",d.ok?"ok":"error");
-  if(d.ok){
-    const modalEl = document.getElementById("modalScrap");
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-  }
+  }), "modalScrap", "form-scrap", "Scrap aplicado", "Error scrap");
 });
 
 // === Cargar gráficos ===
