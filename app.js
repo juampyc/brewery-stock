@@ -1,4 +1,4 @@
-const API = "PEGAR_URL_EXEC";
+const API = "https://script.google.com/macros/s/AKfycbxUStfukZGj5m4uLpgTC8xzBcdaz_HxzHyd8zFX8rSXOQfx4sBg7rQC328_vptPziT_/exec";
 
 function showStatus(msg, type='info'){
   const el=document.getElementById("status");
