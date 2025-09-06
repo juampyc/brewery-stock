@@ -1,215 +1,339 @@
 /*
   JavaScript para Control de Stock Castelo
-  CRUD + integración con Apps Script vía fetch.
-  Modales HTML para agregar/editar entidades.
+  REST con Apps Script + modales con SweetAlert2
 */
 
 const API_BASE = "https://script.google.com/macros/s/AKfycbwuCNU6Tf7E_l16zEiDDUdI0pqbGu_VYiGLkhzF66K3q0-ZSd6dX1d850TTTQVAxw0/exec";
 
-// ---------- Helpers API ----------
+/* ---------------- API helpers ---------------- */
 async function apiGet(entity, action = "getAll", extra = {}) {
   const params = new URLSearchParams({ entity, action, ...extra });
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   return res.json();
 }
 
-async function apiPost(entity, data) {
-  const res = await fetch(`${API_BASE}?entity=${entity}`, {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+async function apiPost(entity, data, action) {
+  const url = action ? `${API_BASE}?entity=${entity}&action=${action}` : `${API_BASE}?entity=${entity}`;
+  const res = await fetch(url, { method: "POST", body: JSON.stringify(data || {}) });
   return res.json();
 }
 
+/* DELETE via POST (Apps Script no soporta doDelete) */
 async function apiDelete(entity, id) {
-  const res = await fetch(`${API_BASE}?entity=${entity}&id=${id}`, {
-    method: "DELETE",
-  });
-  return res.json();
+  return apiPost(entity, { id }, "delete");
 }
 
-// ---------- Utilidades ----------
-function renderIdShort(id) {
-  return id ? id.slice(-6) : "";
-}
-
-function renderColorSquare(color) {
-  if (!color) return "";
-  return `<div style="width:20px; height:20px; border-radius:4px; background:${color};"></div>`;
-}
-
-function renderDateLocal(dateStr) {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleString();
-  } catch {
-    return dateStr;
+/* ---------------- Tema (dark / light) ---------------- */
+function initTheme() {
+  const sw = document.getElementById("themeSwitch");
+  const saved = localStorage.getItem("theme") || "light";
+  document.documentElement.setAttribute("data-theme", saved);
+  if (sw) {
+    sw.checked = saved === "dark";
+    sw.addEventListener("change", () => {
+      const theme = sw.checked ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("theme", theme);
+    });
   }
 }
 
-// ---------- Tablas ----------
+/* ---------------- Sidebar (colapsable + móvil) ---------------- */
+function initSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  const btn = document.getElementById("btnToggleSidebar");
+  if (!sidebar || !btn) return;
+
+  const toggle = () => {
+    sidebar.classList.toggle("open");      // móvil
+    sidebar.classList.toggle("collapsed"); // desktop
+  };
+  btn.addEventListener("click", toggle);
+
+  // En mobile, esconder por defecto
+  if (window.matchMedia("(max-width: 768px)").matches) {
+    sidebar.classList.remove("collapsed");
+    sidebar.classList.remove("open");
+  }
+}
+
+/* ---------------- Render helpers ---------------- */
+const LABELS = {
+  brands: "Marca",
+  styles: "Estilo",
+  fermenters: "Fermentador",
+  containers: "Envase",
+};
+
+function renderIdShort(id) { return id ? id.slice(-6) : ""; }
+function renderColorSquare(color) {
+  if (!color) return "";
+  return `<div class="color-box" style="background:${color}; margin:auto;"></div>`;
+}
+
+/* parsea "YYYY-MM-DD HH:mm:ss" como local (evita offset) */
+function renderDateLocal(s) {
+  if (!s) return "";
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (!m) return s;
+  const [_, Y, M, D, h, mnt, sec] = m.map(Number);
+  const d = new Date(Y, M - 1, D, h, mnt, sec); // local
+  return d.toLocaleString();
+}
+
+/* ---------------- Tablas ---------------- */
 async function loadTable(entity, tableId) {
   try {
     const items = await apiGet(entity);
     const tbody = document.querySelector(`#${tableId} tbody`);
     tbody.innerHTML = "";
-    items.forEach((row) => {
-      const tr = document.createElement("tr");
 
+    items.forEach((row) => {
+      const cells = [];
       if (entity === "brands") {
-        tr.innerHTML = `
-          <td>${renderIdShort(row.id)}</td>
-          <td>${row.name || ""}</td>
-          <td>${renderColorSquare(row.color)}</td>
-          <td>${renderDateLocal(row.lastModified)}</td>
-          <td>
-            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
-          </td>`;
+        cells.push(renderIdShort(row.id));
+        cells.push(row.name || "");
+        cells.push(renderColorSquare(row.color));
+        cells.push(renderDateLocal(row.lastModified));
       } else if (entity === "styles") {
-        tr.innerHTML = `
-          <td>${renderIdShort(row.id)}</td>
-          <td>${row.brandName || ""}</td>
-          <td>${row.name || ""}</td>
-          <td>${renderColorSquare(row.color)}</td>
-          <td>${row.showAlways ? "✔" : ""}</td>
-          <td>${renderDateLocal(row.lastModified)}</td>
-          <td>
-            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
-          </td>`;
+        cells.push(renderIdShort(row.id));
+        cells.push(row.brandName || "");
+        cells.push(row.name || "");
+        cells.push(renderColorSquare(row.color));
+        cells.push(row.showAlways ? "✔" : "");
+        cells.push(renderDateLocal(row.lastModified));
       } else if (entity === "fermenters") {
-        tr.innerHTML = `
-          <td>${renderIdShort(row.id)}</td>
-          <td>${row.name || ""}</td>
-          <td>${row.sizeLiters || ""}</td>
-          <td>${renderColorSquare(row.color)}</td>
-          <td>${renderDateLocal(row.lastModified)}</td>
-          <td>
-            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
-          </td>`;
+        cells.push(renderIdShort(row.id));
+        cells.push(row.name || "");
+        cells.push(row.sizeLiters || "");
+        cells.push(renderColorSquare(row.color));
+        cells.push(renderDateLocal(row.lastModified));
       } else if (entity === "containers") {
-        tr.innerHTML = `
-          <td>${renderIdShort(row.id)}</td>
-          <td>${row.name || ""}</td>
-          <td>${row.sizeLiters || ""}</td>
-          <td>${row.type || ""}</td>
-          <td>${renderColorSquare(row.color)}</td>
-          <td>${renderDateLocal(row.lastModified)}</td>
-          <td>
-            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
-          </td>`;
+        cells.push(renderIdShort(row.id));
+        cells.push(row.name || "");
+        cells.push(row.sizeLiters || "");
+        cells.push(row.type || "");
+        cells.push(renderColorSquare(row.color));
+        cells.push(renderDateLocal(row.lastModified));
       }
+
+      const tr = document.createElement("tr");
+      cells.forEach((val) => {
+        const td = document.createElement("td");
+        td.innerHTML = val;
+        td.style.verticalAlign = "middle";
+        tr.appendChild(td);
+      });
+
+      const tdActions = document.createElement("td");
+      tdActions.innerHTML = `
+        <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}','${row.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>`;
+      tr.appendChild(tdActions);
+
       tbody.appendChild(tr);
     });
   } catch (err) {
     console.error(err);
-    Swal.fire("Error", "No se pudieron cargar los datos de " + entity, "error");
+    Swal.fire("Error", "No se pudieron cargar " + LABELS[entity] + "s", "error");
   }
 }
 
-// ---------- Modales ----------
+/* ---------------- Modales (SweetAlert con HTML propio) ---------------- */
 function modalHtml(entity, data = {}) {
-  if (entity === "brands") {
-    return `
-      <div class="mb-3"><label>Nombre</label><input id="brandName" class="form-control" value="${data.name || ""}"></div>
-      <div class="mb-3"><label>Color</label><input id="brandColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>`;
-  }
-  if (entity === "styles") {
-    return `
-      <div class="mb-3"><label>Marca</label><input id="styleBrandName" class="form-control" value="${data.brandName || ""}" placeholder="Nombre marca"></div>
-      <div class="mb-3"><label>Nombre</label><input id="styleName" class="form-control" value="${data.name || ""}"></div>
-      <div class="mb-3"><label>Color</label><input id="styleColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>
-      <div class="mb-3"><label><input type="checkbox" id="styleShowAlways" ${data.showAlways ? "checked" : ""}> Mostrar siempre</label></div>`;
-  }
-  if (entity === "fermenters") {
-    return `
-      <div class="mb-3"><label>Nombre</label><input id="fermenterName" class="form-control" value="${data.name || ""}"></div>
-      <div class="mb-3"><label>Capacidad (L)</label><input id="fermenterSize" type="number" class="form-control" value="${data.sizeLiters || 0}"></div>
-      <div class="mb-3"><label>Color</label><input id="fermenterColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>`;
-  }
-  if (entity === "containers") {
-    return `
-      <div class="mb-3"><label>Nombre</label><input id="containerName" class="form-control" value="${data.name || ""}"></div>
-      <div class="mb-3"><label>Tamaño (L)</label><input id="containerSize" type="number" class="form-control" value="${data.sizeLiters || 0}"></div>
-      <div class="mb-3"><label>Tipo</label><input id="containerType" class="form-control" value="${data.type || "lata"}"></div>
-      <div class="mb-3"><label>Color</label><input id="containerColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>`;
-  }
+  const title = (id) => (id ? "Editar " : "Agregar ") + LABELS[entity];
+
+  const htmlPieces = {
+    brands: `
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Nombre</label>
+        <input id="brandName" class="form-control" value="${data.name || ""}">
+      </div>
+      <div class="mb-2 text-center">
+        <label class="form-label fw-semibold d-block">Color</label>
+        <input id="brandColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color || "#000000"}">
+      </div>
+    `,
+    styles: `
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Marca (nombre)</label>
+        <input id="styleBrandName" class="form-control" value="${data.brandName || ""}" placeholder="Ej: Castelo">
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Nombre del estilo</label>
+        <input id="styleName" class="form-control" value="${data.name || ""}">
+      </div>
+      <div class="mb-2 text-center">
+        <label class="form-label fw-semibold d-block">Color</label>
+        <input id="styleColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color || "#000000"}">
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="styleShowAlways" ${data.showAlways ? "checked" : ""}>
+        <label class="form-check-label" for="styleShowAlways">Mostrar siempre (aunque no haya stock)</label>
+      </div>
+    `,
+    fermenters: `
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Nombre</label>
+        <input id="fermenterName" class="form-control" value="${data.name || ""}">
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Capacidad (L)</label>
+        <input id="fermenterSize" type="number" class="form-control" value="${data.sizeLiters || 0}">
+      </div>
+      <div class="mb-2 text-center">
+        <label class="form-label fw-semibold d-block">Color</label>
+        <input id="fermenterColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color || "#000000"}">
+      </div>
+    `,
+    containers: `
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Nombre</label>
+        <input id="containerName" class="form-control" value="${data.name || ""}">
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Tamaño (L)</label>
+        <input id="containerSize" type="number" class="form-control" value="${data.sizeLiters || 0}">
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Tipo</label>
+        <input id="containerType" class="form-control" value="${data.type || "lata"}" placeholder="lata / barril">
+      </div>
+      <div class="mb-2 text-center">
+        <label class="form-label fw-semibold d-block">Color</label>
+        <input id="containerColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color || "#000000"}">
+      </div>
+    `,
+  };
+
+  return { title: title(!!data.id), html: htmlPieces[entity] };
 }
 
 async function openModal(entity, id = null) {
   let data = {};
-  if (id) {
-    data = await apiGet(entity, "getById", { id });
-  }
-  const { value: confirmed } = await Swal.fire({
-    title: id ? "Editar " + entity : "Agregar " + entity,
-    html: modalHtml(entity, data),
+  if (id) data = await apiGet(entity, "getById", { id });
+
+  const cfg = modalHtml(entity, data);
+  const { isConfirmed } = await Swal.fire({
+    title: cfg.title,
+    html: cfg.html,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: "Guardar",
-    preConfirm: () => true,
+    cancelButtonText: "Cancelar",
+    width: 640,
   });
-  if (confirmed) {
-    await saveModal(entity, id, data);
-  }
-}
+  if (!isConfirmed) return;
 
-async function saveModal(entity, id, oldData = {}) {
-  let obj = { id: id || undefined };
+  let obj = { id };
   if (entity === "brands") {
-    obj.name = document.getElementById("brandName").value;
+    obj.name = document.getElementById("brandName").value.trim();
     obj.color = document.getElementById("brandColor").value;
-  }
-  if (entity === "styles") {
-    obj.brandName = document.getElementById("styleBrandName").value;
-    obj.name = document.getElementById("styleName").value;
+  } else if (entity === "styles") {
+    obj.brandName = document.getElementById("styleBrandName").value.trim();
+    obj.name = document.getElementById("styleName").value.trim();
     obj.color = document.getElementById("styleColor").value;
     obj.showAlways = document.getElementById("styleShowAlways").checked;
-  }
-  if (entity === "fermenters") {
-    obj.name = document.getElementById("fermenterName").value;
+  } else if (entity === "fermenters") {
+    obj.name = document.getElementById("fermenterName").value.trim();
     obj.sizeLiters = Number(document.getElementById("fermenterSize").value);
     obj.color = document.getElementById("fermenterColor").value;
-  }
-  if (entity === "containers") {
-    obj.name = document.getElementById("containerName").value;
+  } else if (entity === "containers") {
+    obj.name = document.getElementById("containerName").value.trim();
     obj.sizeLiters = Number(document.getElementById("containerSize").value);
-    obj.type = document.getElementById("containerType").value;
+    obj.type = document.getElementById("containerType").value.trim();
     obj.color = document.getElementById("containerColor").value;
   }
 
   const saved = await apiPost(entity, obj);
   if (saved.ok) {
-    Swal.fire("Guardado", "Registro actualizado", "success");
+    Swal.fire("Guardado", `${LABELS[entity]} guardado correctamente`, "success");
     loadTable(entity, entity + "Table");
   } else {
     Swal.fire("Error", saved.error || "No se pudo guardar", "error");
   }
 }
 
-// ---------- Delete ----------
+/* ---------------- Delete ---------------- */
 async function deleteItem(entity, id) {
-  const confirm = await Swal.fire({
+  const r = await Swal.fire({
     title: "¿Eliminar?",
+    text: `Vas a eliminar este ${LABELS[entity].toLowerCase()}.`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonText: "Sí, eliminar",
+    cancelButtonText: "Cancelar",
   });
-  if (confirm.isConfirmed) {
-    const res = await apiDelete(entity, id);
-    if (res.ok) {
-      Swal.fire("Eliminado", "Registro borrado", "success");
-      loadTable(entity, entity + "Table");
-    }
+  if (!r.isConfirmed) return;
+
+  const res = await apiDelete(entity, id);
+  if (res.ok) {
+    Swal.fire("Eliminado", `${LABELS[entity]} eliminado`, "success");
+    loadTable(entity, entity + "Table");
+  } else {
+    Swal.fire("Error", res.error || "No se pudo eliminar", "error");
   }
 }
 
-// ---------- Inicialización ----------
+/* ---------------- Index: latas vacías (si existe el elemento) ---------------- */
+async function loadEmptyCans() {
+  const el = document.getElementById("emptyCansCount");
+  if (!el) return;
+  try {
+    const data = await apiGet("emptycans", "emptycans_count");
+    el.textContent = data.count ?? 0;
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function initEmptyCansButton() {
+  const btn = document.getElementById("btnAddEmptyCan");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    Swal.fire({
+      title: "Agregar latas vacías",
+      html: `
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Cantidad</label>
+          <input id="ec_qty" type="number" class="form-control" value="1" min="1">
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Lote (opcional)</label>
+          <input id="ec_batch" class="form-control">
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Fabricante / Compra (opcional)</label>
+          <input id="ec_manu" class="form-control">
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: "Guardar",
+      cancelButtonText: "Cancelar"
+    }).then(async (r) => {
+      if (!r.isConfirmed) return;
+      const qty = Math.max(1, Number(document.getElementById("ec_qty").value || 1));
+      const batch = document.getElementById("ec_batch").value.trim();
+      const manufacturer = document.getElementById("ec_manu").value.trim();
+
+      // Guardamos 'qty' veces (simple)
+      for (let i = 0; i < qty; i++) {
+        await apiPost("emptycans", { batch, manufacturer });
+      }
+      Swal.fire("Guardado", "Latas registradas", "success");
+      loadEmptyCans();
+    });
+  });
+}
+
+/* ---------------- Init ---------------- */
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+  initSidebar();
+  loadEmptyCans();
+  initEmptyCansButton();
+
+  // Cargar tablas si estamos en config.html
   if (document.getElementById("brandsTable")) {
     loadTable("brands", "brandsTable");
     loadTable("styles", "stylesTable");
