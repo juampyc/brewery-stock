@@ -1,0 +1,4 @@
+body { background:#ffffff; color:#000000; }
+.card { background:#f8f9fa; border:1px solid #dee2e6; color:#000000; }
+.status{ position:sticky; top:0; z-index:1056; display:none; }
+.status.show{ display:block; }

@@ -1,0 +1,4 @@
+body { background:#0b0c10; color:#e8eaed; }
+.card { background:#1c1f26; border:1px solid #2a2d33; color:#e8eaed; }
+.status{ position:sticky; top:0; z-index:1056; display:none; }
+.status.show{ display:block; }
