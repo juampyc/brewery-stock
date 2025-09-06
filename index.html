@@ -23,7 +23,8 @@
       <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalEmpty">Latas vacías</button>
       <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalScrap">Scrap</button>
       <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#modalPack">Empaquetar</button>
-      <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalConfig">Config estilos</button>
+      <a href="config.html" class="btn btn-outline-light"><i class="bi bi-gear"></i></a>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">  
     </div>
 
     <div class="row g-3">
@@ -93,31 +94,6 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button class="btn btn-secondary" type="submit">Guardar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal Config Estilos con selector de color -->
-  <div class="modal fade" id="modalConfig" tabindex="-1">
-    <div class="modal-dialog">
-      <form class="modal-content" id="form-config">
-        <div class="modal-header"><h5>Configurar estilos</h5></div>
-        <div class="modal-body">
-          <input type="text" id="cfg-brand" class="form-control mb-2" placeholder="Marca">
-          <input type="text" id="cfg-style" class="form-control mb-2" placeholder="Estilo">
-          <div class="form-check mb-2">
-            <input type="checkbox" id="cfg-show" class="form-check-input">
-            <label class="form-check-label" for="cfg-show">Mostrar siempre</label>
-          </div>
-          <div class="mb-2">
-            <label for="cfg-color">Color</label>
-            <input type="color" id="cfg-color" class="form-control form-control-color" value="#9e9e9e">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button class="btn btn-warning" type="submit">Agregar</button>
         </div>
       </form>
     </div>

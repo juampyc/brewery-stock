@@ -46,17 +46,6 @@ async function handleForm(ev, payloadBuilder, modalId, formId, successMsg, error
   btn.textContent = "Guardar";
 }
 
-// Configuración estilos con color
-document.getElementById("form-config").addEventListener("submit", ev=>{
-  handleForm(ev, ()=>({
-    action:"config_add_style",
-    brand:document.getElementById("cfg-brand").value,
-    style:document.getElementById("cfg-style").value,
-    show:document.getElementById("cfg-show").checked,
-    color:document.getElementById("cfg-color").value
-  }), "modalConfig", "form-config", "Estilo agregado", "Error config");
-});
-
 // Ejemplo: carga de gráficos usando color desde backend
 async function load(){
   const r=await fetch(API);
