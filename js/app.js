@@ -1,6 +1,7 @@
 /*
   JavaScript para Control de Stock Castelo
-  Conexión a Apps Script publicado como API REST.
+  CRUD + integración con Apps Script vía fetch.
+  Modales HTML para agregar/editar entidades.
 */
 
 const API_BASE = "https://script.google.com/macros/s/AKfycbwuCNU6Tf7E_l16zEiDDUdI0pqbGu_VYiGLkhzF66K3q0-ZSd6dX1d850TTTQVAxw0/exec";
@@ -27,69 +28,27 @@ async function apiDelete(entity, id) {
   return res.json();
 }
 
-// ---------- UI ----------
-function initTheme() {
-  const toggle = document.getElementById("themeSwitch");
-  if (!toggle) return;
-  toggle.addEventListener("change", () => {
-    document.documentElement.setAttribute("data-theme", toggle.checked ? "dark" : "light");
-    localStorage.setItem("theme", toggle.checked ? "dark" : "light");
-  });
-  const saved = localStorage.getItem("theme") || "light";
-  toggle.checked = saved === "dark";
-  document.documentElement.setAttribute("data-theme", saved);
+// ---------- Utilidades ----------
+function renderIdShort(id) {
+  return id ? id.slice(-6) : "";
 }
 
-function initSidebar() {
-  const btn = document.getElementById("btnToggleSidebar");
-  if (!btn) return;
-  btn.addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("collapsed");
-  });
+function renderColorSquare(color) {
+  if (!color) return "";
+  return `<div style="width:20px; height:20px; border-radius:4px; background:${color};"></div>`;
 }
 
-// ---------- Latas Vacías ----------
-async function loadEmptyCans() {
+function renderDateLocal(dateStr) {
+  if (!dateStr) return "";
   try {
-    const data = await apiGet("emptycans", "emptycans_count");
-    document.getElementById("emptyCansCount").textContent = data.count;
-  } catch (err) {
-    Swal.fire("Error al cargar latas", err.message || "Failed to fetch", "error");
+    const d = new Date(dateStr);
+    return d.toLocaleString();
+  } catch {
+    return dateStr;
   }
 }
 
-function addEmptyCan() {
-  Swal.fire({
-    title: "Agregar lata vacía",
-    html: `
-      <input id="batch" class="swal2-input" placeholder="Lote (opcional)">
-      <input id="manufacturer" class="swal2-input" placeholder="Fabricante (opcional)">
-      <input id="purchase" class="swal2-input" placeholder="Compra (opcional)">
-    `,
-    focusConfirm: false,
-    preConfirm: () => {
-      return {
-        batch: document.getElementById("batch").value,
-        manufacturer: document.getElementById("manufacturer").value,
-        purchase: document.getElementById("purchase").value,
-      };
-    },
-    showCancelButton: true,
-    confirmButtonText: "Guardar",
-  }).then(async (result) => {
-    if (result.isConfirmed) {
-      const saved = await apiPost("emptycans", result.value);
-      if (saved.ok) {
-        Swal.fire("Guardado", "Lata vacía registrada", "success");
-        loadEmptyCans();
-      } else {
-        Swal.fire("Error", saved.error || "No se pudo guardar", "error");
-      }
-    }
-  });
-}
-
-// ---------- CRUD Configuración ----------
+// ---------- Tablas ----------
 async function loadTable(entity, tableId) {
   try {
     const items = await apiGet(entity);
@@ -97,17 +56,53 @@ async function loadTable(entity, tableId) {
     tbody.innerHTML = "";
     items.forEach((row) => {
       const tr = document.createElement("tr");
-      Object.values(row).forEach((val) => {
-        const td = document.createElement("td");
-        td.textContent = val;
-        tr.appendChild(td);
-      });
-      const tdActions = document.createElement("td");
-      tdActions.innerHTML = `
-        <button class="btn btn-sm btn-warning me-1" onclick="editItem('${entity}','${row.id}')">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
-      `;
-      tr.appendChild(tdActions);
+
+      if (entity === "brands") {
+        tr.innerHTML = `
+          <td>${renderIdShort(row.id)}</td>
+          <td>${row.name || ""}</td>
+          <td>${renderColorSquare(row.color)}</td>
+          <td>${renderDateLocal(row.lastModified)}</td>
+          <td>
+            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
+          </td>`;
+      } else if (entity === "styles") {
+        tr.innerHTML = `
+          <td>${renderIdShort(row.id)}</td>
+          <td>${row.brandName || ""}</td>
+          <td>${row.name || ""}</td>
+          <td>${renderColorSquare(row.color)}</td>
+          <td>${row.showAlways ? "✔" : ""}</td>
+          <td>${renderDateLocal(row.lastModified)}</td>
+          <td>
+            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
+          </td>`;
+      } else if (entity === "fermenters") {
+        tr.innerHTML = `
+          <td>${renderIdShort(row.id)}</td>
+          <td>${row.name || ""}</td>
+          <td>${row.sizeLiters || ""}</td>
+          <td>${renderColorSquare(row.color)}</td>
+          <td>${renderDateLocal(row.lastModified)}</td>
+          <td>
+            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
+          </td>`;
+      } else if (entity === "containers") {
+        tr.innerHTML = `
+          <td>${renderIdShort(row.id)}</td>
+          <td>${row.name || ""}</td>
+          <td>${row.sizeLiters || ""}</td>
+          <td>${row.type || ""}</td>
+          <td>${renderColorSquare(row.color)}</td>
+          <td>${renderDateLocal(row.lastModified)}</td>
+          <td>
+            <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}', '${row.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>
+          </td>`;
+      }
       tbody.appendChild(tr);
     });
   } catch (err) {
@@ -116,26 +111,87 @@ async function loadTable(entity, tableId) {
   }
 }
 
-async function editItem(entity, id) {
-  const item = await apiGet(entity, "getById", { id });
-  Swal.fire({
-    title: "Editar " + entity,
-    input: "text",
-    inputValue: item.name || "",
-    showCancelButton: true,
-    confirmButtonText: "Guardar",
-  }).then(async (r) => {
-    if (r.isConfirmed) {
-      item.name = r.value;
-      const saved = await apiPost(entity, item);
-      if (saved.ok) {
-        Swal.fire("Guardado", "Registro actualizado", "success");
-        loadTable(entity, entity + "Table");
-      }
-    }
-  });
+// ---------- Modales ----------
+function modalHtml(entity, data = {}) {
+  if (entity === "brands") {
+    return `
+      <div class="mb-3"><label>Nombre</label><input id="brandName" class="form-control" value="${data.name || ""}"></div>
+      <div class="mb-3"><label>Color</label><input id="brandColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>`;
+  }
+  if (entity === "styles") {
+    return `
+      <div class="mb-3"><label>Marca</label><input id="styleBrandName" class="form-control" value="${data.brandName || ""}" placeholder="Nombre marca"></div>
+      <div class="mb-3"><label>Nombre</label><input id="styleName" class="form-control" value="${data.name || ""}"></div>
+      <div class="mb-3"><label>Color</label><input id="styleColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>
+      <div class="mb-3"><label><input type="checkbox" id="styleShowAlways" ${data.showAlways ? "checked" : ""}> Mostrar siempre</label></div>`;
+  }
+  if (entity === "fermenters") {
+    return `
+      <div class="mb-3"><label>Nombre</label><input id="fermenterName" class="form-control" value="${data.name || ""}"></div>
+      <div class="mb-3"><label>Capacidad (L)</label><input id="fermenterSize" type="number" class="form-control" value="${data.sizeLiters || 0}"></div>
+      <div class="mb-3"><label>Color</label><input id="fermenterColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>`;
+  }
+  if (entity === "containers") {
+    return `
+      <div class="mb-3"><label>Nombre</label><input id="containerName" class="form-control" value="${data.name || ""}"></div>
+      <div class="mb-3"><label>Tamaño (L)</label><input id="containerSize" type="number" class="form-control" value="${data.sizeLiters || 0}"></div>
+      <div class="mb-3"><label>Tipo</label><input id="containerType" class="form-control" value="${data.type || "lata"}"></div>
+      <div class="mb-3"><label>Color</label><input id="containerColor" type="color" class="form-control form-control-color" value="${data.color || "#000000"}"></div>`;
+  }
 }
 
+async function openModal(entity, id = null) {
+  let data = {};
+  if (id) {
+    data = await apiGet(entity, "getById", { id });
+  }
+  const { value: confirmed } = await Swal.fire({
+    title: id ? "Editar " + entity : "Agregar " + entity,
+    html: modalHtml(entity, data),
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: "Guardar",
+    preConfirm: () => true,
+  });
+  if (confirmed) {
+    await saveModal(entity, id, data);
+  }
+}
+
+async function saveModal(entity, id, oldData = {}) {
+  let obj = { id: id || undefined };
+  if (entity === "brands") {
+    obj.name = document.getElementById("brandName").value;
+    obj.color = document.getElementById("brandColor").value;
+  }
+  if (entity === "styles") {
+    obj.brandName = document.getElementById("styleBrandName").value;
+    obj.name = document.getElementById("styleName").value;
+    obj.color = document.getElementById("styleColor").value;
+    obj.showAlways = document.getElementById("styleShowAlways").checked;
+  }
+  if (entity === "fermenters") {
+    obj.name = document.getElementById("fermenterName").value;
+    obj.sizeLiters = Number(document.getElementById("fermenterSize").value);
+    obj.color = document.getElementById("fermenterColor").value;
+  }
+  if (entity === "containers") {
+    obj.name = document.getElementById("containerName").value;
+    obj.sizeLiters = Number(document.getElementById("containerSize").value);
+    obj.type = document.getElementById("containerType").value;
+    obj.color = document.getElementById("containerColor").value;
+  }
+
+  const saved = await apiPost(entity, obj);
+  if (saved.ok) {
+    Swal.fire("Guardado", "Registro actualizado", "success");
+    loadTable(entity, entity + "Table");
+  } else {
+    Swal.fire("Error", saved.error || "No se pudo guardar", "error");
+  }
+}
+
+// ---------- Delete ----------
 async function deleteItem(entity, id) {
   const confirm = await Swal.fire({
     title: "¿Eliminar?",
@@ -154,14 +210,6 @@ async function deleteItem(entity, id) {
 
 // ---------- Inicialización ----------
 document.addEventListener("DOMContentLoaded", () => {
-  initTheme();
-  initSidebar();
-
-  if (document.getElementById("emptyCansCount")) {
-    loadEmptyCans();
-    document.getElementById("btnAddEmptyCan").addEventListener("click", addEmptyCan);
-  }
-
   if (document.getElementById("brandsTable")) {
     loadTable("brands", "brandsTable");
     loadTable("styles", "stylesTable");

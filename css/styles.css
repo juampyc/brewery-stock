@@ -1,138 +1,180 @@
-/*
-  Global theme variables and layout definitions for Castelo Stock Control.
-  The site supports light and dark modes via the data-theme attribute on
-  the <html> element. Colours are defined as CSS custom properties so
-  they can easily be overridden for dark mode. Keep any additional
-  colours here consistent across both themes.
-*/
-
+/* =======================
+   Variables por tema
+   ======================= */
 :root {
-  --bg-color: #f8f9fa;
-  --text-color: #212529;
-  --card-bg: #ffffff;
-  --card-border: #dee2e6;
-  --nav-bg: #ffffff;
-  --nav-link-active-bg: #e9ecef;
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #dee2e6;
-  --link-color: #0d6efd;
+  --bg-color: #ffffff;
+  --text-color: #1f2937;
+  --card-bg: #f8fafc;
+  --border-color: #e5e7eb;
+  --muted: #6b7280;
+
+  --primary: #4f46e5;   /* botones / acentos */
+  --primary-hover: #4338ca;
+
+  --sweet-bg: #ffffff;
+  --sweet-text: #111827;
 }
 
-[data-theme="dark"] {
-  --bg-color: #212529;
-  --text-color: #f8f9fa;
-  --card-bg: #343a40;
-  --card-border: #495057;
-  --nav-bg: #343a40;
-  --nav-link-active-bg: #495057;
-  --sidebar-bg: #343a40;
-  --sidebar-border: #495057;
-  --link-color: #0d6efd;
+html[data-theme="dark"] {
+  --bg-color: #0b1220;
+  --text-color: #e5e7eb;
+  --card-bg: #111827;
+  --border-color: #1f2937;
+  --muted: #9ca3af;
+
+  --primary: #818cf8;
+  --primary-hover: #6366f1;
+
+  --sweet-bg: #161b22;
+  --sweet-text: #e5e7eb;
 }
 
-body {
-  background-color: var(--bg-color);
+/* =======================
+   Base
+   ======================= */
+html, body {
+  height: 100%;
+  background: var(--bg-color);
   color: var(--text-color);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  transition: background .25s ease, color .25s ease;
 }
 
-/* Sidebar layout */
-.sidebar {
-  width: 240px;
-  background-color: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
+a { color: var(--primary); }
+a:hover { color: var(--primary-hover); }
+
+/* =======================
+   Layout / Sidebar
+   ======================= */
+.app-sidebar {
+  width: 260px;
   min-height: 100vh;
-  transition: width 0.2s ease;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
+  background: var(--card-bg);
+  border-right: 1px solid var(--border-color);
+  transition: width .2s ease;
 }
-
-.sidebar.collapsed {
-  width: 60px;
-}
-
-.sidebar .nav-link {
+.app-sidebar.collapsed { width: 64px; }
+.app-sidebar .nav-link {
   color: var(--text-color);
-  display: flex;
-  align-items: center;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.25rem;
-  margin-bottom: 0.25rem;
+  display: flex; align-items: center; gap: .5rem;
+  border-radius: .5rem;
+}
+.app-sidebar .nav-link:hover {
+  background: rgba(99,102,241,.08);
+}
+.app-sidebar .nav-link.active {
+  background: rgba(99,102,241,.15);
+  color: var(--primary);
 }
 
-.sidebar .nav-link.active {
-  background-color: var(--nav-link-active-bg);
-}
+.app-main { flex: 1; }
 
-.sidebar .nav-link:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.sidebar .nav-link .material-icons {
-  margin-right: 0.5rem;
-}
-
-.sidebar.collapsed .nav-link .material-icons {
-  margin: 0 auto;
-}
-
-.sidebar.collapsed .nav-link .label-text {
-  display: none;
-}
-
-/* Main content area shifts to the right when sidebar is present */
-.main-content {
-  margin-left: 240px;
-  transition: margin-left 0.2s ease;
-  padding: 1rem;
-}
-
-.sidebar.collapsed ~ .main-content {
-  margin-left: 60px;
-}
-
-/* Cards and tables */
+/* =======================
+   Cards / Tables / Forms
+   ======================= */
 .card {
-  background-color: var(--card-bg);
-  border-color: var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
 }
 
 .table {
   color: var(--text-color);
+  border-color: var(--border-color);
 }
-
+.table thead {
+  background: var(--card-bg);
+}
 .table thead th {
-  background-color: var(--nav-link-active-bg);
+  border-bottom-color: var(--border-color) !important;
+}
+.table td, .table th {
+  border-color: var(--border-color) !important;
+}
+.table-striped > tbody > tr:nth-of-type(odd) {
+  --bs-table-accent-bg: rgba(99,102,241,.04);
 }
 
-.nav-tabs .nav-link {
+.form-control, .form-select, .form-control-color {
+  background: var(--bg-color);
   color: var(--text-color);
+  border-color: var(--border-color);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 .25rem rgba(99,102,241,.25);
 }
 
-.nav-tabs .nav-link.active {
-  background-color: var(--nav-link-active-bg);
+/* =======================
+   Botones
+   ======================= */
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.btn-outline-secondary {
   color: var(--text-color);
+  border-color: var(--border-color);
+}
+.btn-outline-secondary:hover {
+  background: rgba(99,102,241,.08);
+  border-color: var(--border-color);
+}
+.btn-danger {
+  background: #ef4444;
+  border-color: #ef4444;
 }
 
-.form-check-label {
-  color: var(--text-color);
-}
-
-/* Utility class for color swatches */
-.color-swatch {
+/* =======================
+   Utilidades
+   ======================= */
+.color-box {
+  width: 20px; height: 20px; border-radius: 4px;
+  border: 1px solid var(--border-color);
   display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border-radius: 0.25rem;
-  border: 1px solid var(--card-border);
-  margin-right: 0.25rem;
-  vertical-align: middle;
 }
 
-/* Small button spacing */
-.btn-icon {
-  padding: 0.25rem 0.4rem;
-  line-height: 1;
-  font-size: 0.8rem;
+/* =======================
+   SweetAlert2 (tema)
+   ======================= */
+.swal2-popup {
+  background: var(--sweet-bg) !important;
+  color: var(--sweet-text) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+.swal2-title, .swal2-html-container {
+  color: var(--sweet-text) !important;
+}
+.swal2-input, .swal2-select, .swal2-textarea {
+  background: var(--card-bg) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--border-color) !important;
+}
+.swal2-confirm, .swal2-cancel {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+.swal2-confirm:hover, .swal2-cancel:hover {
+  background: var(--primary-hover) !important;
+}
+
+/* =======================
+   Alerts
+   ======================= */
+.alert-info {
+  color: var(--text-color);
+  background: rgba(99,102,241,.08);
+  border-color: var(--border-color);
+}
+
+/* =======================
+   Icon tweaks
+   ======================= */
+.material-icons {
+  vertical-align: middle;
 }
