@@ -1,4 +1,4 @@
-body { background:#ffffff; color:#000000; }
-.card { background:#f8f9fa; border:1px solid #dee2e6; color:#000000; }
-.status{ position:sticky; top:0; z-index:1056; display:none; }
-.status.show{ display:block; }
+body { background-color: #f9f9f9; color: #222; }
+.card, .modal-content { background-color: #ffffff; color: #222; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.btn { border-radius: 8px; }
+canvas { background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
