@@ -1,0 +1,80 @@
+
+:root {
+  --bg: #ffffff;
+  --text: #111827;
+  --card: #f8fafc;
+  --border: #e5e7eb;
+  --primary: #4f46e5;
+  --muted: #6b7280;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1220;
+  --text: #e5e7eb;
+  --card: #111827;
+  --border: #1f2937;
+  --primary: #818cf8;
+  --muted: #9ca3af;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-body { background: var(--bg); }
+
+.app-sidebar {
+  width: 260px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  min-height: 100vh;
+  transition: width .2s ease;
+}
+.app-sidebar.collapsed { width: 64px; }
+.app-sidebar .nav-link {
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.app-sidebar .nav-link.active {
+  background: rgba(99,102,241,.15);
+  color: var(--primary);
+  border-radius: .5rem;
+}
+.app-main { flex: 1; }
+
+.card { background: var(--card); border-color: var(--border); }
+
+.table { color: var(--text); }
+.table thead { background: var(--card); }
+.table-striped>tbody>tr:nth-of-type(odd) {
+  --bs-table-accent-bg: rgba(99,102,241,.04);
+}
+
+.btn-primary { background: var(--primary); border-color: var(--primary); }
+.btn-outline-secondary { color: var(--text); border-color: var(--border); }
+.btn-outline-danger { border-color: #ef4444; color: #ef4444; }
+
+.color-dot {
+  display:inline-block; width:16px; height:16px; border-radius:50%;
+  border:1px solid var(--border);
+}
+
+/* SweetAlert2 Theme hooks */
+.swal2-dark { background: var(--card) !important; color: var(--text) !important; }
+.swal2-light { background: var(--card) !important; color: var(--text) !important; }
+.swal2-popup { border: 1px solid var(--border); }
+
+/* Form controls */
+.form-control, .form-select {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 .25rem rgba(99,102,241,.25);
+}
