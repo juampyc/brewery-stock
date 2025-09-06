@@ -1,69 +1,58 @@
 <!DOCTYPE html>
 <html lang="es" data-theme="light">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Castelo | Control de Stock</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUa3YdwFGICJ9f1QKu5RmR5j8AaZfQKZ+fAN6nLvDWZppYMe0EzhJg2KfELJ" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="app-body">
-  <div class="d-flex">
-    <aside id="sidebar" class="app-sidebar">
-      <div class="d-flex align-items-center justify-content-between px-3 py-2">
-        <strong>Castelo</strong>
-        <button class="btn btn-sm btn-outline-secondary" id="btnToggleSidebar" title="Ocultar/Mostrar">
-          <span class="material-icons">menu_open</span>
-        </button>
+  <aside id="sidebar" class="sidebar">
+    <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+      <strong>Castelo</strong>
+      <button id="btnToggleSidebar" class="btn btn-sm btn-outline-secondary"><span class="material-icons">menu</span></button>
+    </div>
+    <nav class="px-2 mt-3">
+      <a class="nav-link active" href="index.html">
+        <span class="material-icons">home</span>
+        <span class="label-text">Inicio</span>
+      </a>
+      <a class="nav-link" href="config.html">
+        <span class="material-icons">settings</span>
+        <span class="label-text">Configuración</span>
+      </a>
+    </nav>
+  </aside>
+  <main class="main-content">
+    <div class="d-flex justify-content-end align-items-center mb-3">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="themeSwitch">
+        <label class="form-check-label" for="themeSwitch">Dark</label>
       </div>
-      <ul class="nav flex-column px-2">
-        <li class="nav-item">
-          <a class="nav-link active" href="?page=index">
-            <span class="material-icons">home</span> Inicio
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="?page=config">
-            <span class="material-icons">settings</span> Configuración
-          </a>
-        </li>
-      </ul>
-    </aside>
-
-    <main class="app-main p-3">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">Control de stock Castelo</h1>
-        <div class="d-flex align-items-center gap-2">
-          <button class="btn btn-outline-primary" id="btnConfig" onclick="location.href='?page=config'">
-            <span class="material-icons">tune</span> Config
-          </button>
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="themeSwitch">
-            <label class="form-check-label" for="themeSwitch">Dark</label>
+    </div>
+    <h1 class="h4 mb-4">Control de stock Castelo</h1>
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Latas vacías</h5>
+            <p class="card-text">
+              <span id="emptyCansCount" class="fs-2 fw-bold">0</span>
+            </p>
+            <button id="btnAddEmptyCan" class="btn btn-sm btn-primary"><span class="material-icons">add</span> Agregar lata vacía</button>
           </div>
         </div>
       </div>
-
-      <div class="alert alert-info">
-        Próximamente: panel con gráficos (Bootstrap 5 + datos). Por ahora, usá los links para ir a Configuración.
-      </div>
-      <div class="row g-3">
-        <div class="col-12 col-md-6">
-          <div class="card">
-            <div class="card-body">
-              <h5 class="card-title"><span class="material-icons">settings</span> Configuración</h5>
-              <p class="card-text">Administrá marcas, estilos, fermentadores y envases.</p>
-              <a class="btn btn-primary" href="?page=config">Ir a Configuración</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
-  </div>
-
+      <!-- Additional cards can be added here for future metrics -->
+    </div>
+    <div class="mt-3">
+      <a href="config.html" class="btn btn-primary">Ir a Configuración</a>
+    </div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ENjdO4Dr2bkBIFxQpeoATDHt6NFjvg9m8Z5n10v7a2Ryuxv6I5I4x2LJ7N3Kv+Sk" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
