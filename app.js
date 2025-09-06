@@ -1,10 +1,14 @@
 const API = "https://script.google.com/macros/s/AKfycbxUStfukZGj5m4uLpgTC8xzBcdaz_HxzHyd8zFX8rSXOQfx4sBg7rQC328_vptPziT_/exec";
 
+// === SweetAlert2 para status ===
 function showStatus(msg, type='info'){
-  const el=document.getElementById("status");
-  el.textContent=msg;
-  el.className="alert status show alert-"+(type==='ok'?'success':type==='error'?'danger':'info');
-  if(type!=='info') setTimeout(()=>el.classList.remove("show"),2000);
+  Swal.fire({
+    text: msg,
+    icon: type==='ok' ? 'success' : type==='error' ? 'error' : 'info',
+    timer: 2000,
+    showConfirmButton: false,
+    position: 'center'
+  });
 }
 
 // === Tema oscuro / claro ===
