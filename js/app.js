@@ -1,26 +1,21 @@
-/*
-  JS Control de Stock Castelo – Bootstrap modals nativos + SweetAlert (confirm/Toast)
-  ► Añadidos:
-    - Movimientos (Kardex) con filtro por ENTIDAD + ÍTEM, totales, desglose, diario con saldo y CSV
-    - Export ZIP con TODOS los CSV (brands, styles, fermenters, containers, emptycans, labels, movements)
-    - Etiquetas: fecha+hora de ingreso, tabla con fecha legible, y resumen por ESTILO (mini-cards)
-    - Latas vacías: fecha+hora opcional en el alta
-*/
-
-const API_BASE = "https://script.google.com/macros/s/AKfycbyojbmDe2uFNyfg_8uL5hl1_slCsM1RYX2sk2655UuYHaKDhkdK_fbNM-1lgYGp84zH/exec";
+// app.js (completo) – Control de Stock + Producción
+// API base (Apps Script)
+const API_BASE = "https://script.google.com/macros/s/AKfycbyC5R2_esM9BwXZLRmF2gcqrLU163eBh_rK-8GOb_gzuJkKj4E8gR0g8BhsgsFf-wqi/exec";
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
 /* =========================
-   API
+   API helpers
    ========================= */
 async function apiGet(entity, action = "getAll", extra = {}) {
   const params = new URLSearchParams({ entity, action, ...extra });
   const res = await fetch(`${API_BASE}?${params.toString()}`);
+  if (!res.ok) throw new Error(`GET ${entity}/${action} ${res.status}`);
   return res.json();
 }
 async function apiPost(entity, data, action) {
   const url = action ? `${API_BASE}?entity=${entity}&action=${action}` : `${API_BASE}?entity=${entity}`;
   const res = await fetch(url, { method: "POST", body: JSON.stringify(data || {}) });
+  if (!res.ok) throw new Error(`POST ${entity}${action?"/"+action:""} ${res.status}`);
   return res.json();
 }
 async function apiDelete(entity, id) { return apiPost(entity, { id }, "delete"); }
@@ -30,7 +25,7 @@ async function apiDelete(entity, id) { return apiPost(entity, { id }, "delete");
    ========================= */
 const Toast = Swal.mixin({
   toast: true, position: "top-end", showConfirmButton: false,
-  timer: 1700, timerProgressBar: true,
+  timer: 1800, timerProgressBar: true,
   didOpen: t => { t.addEventListener("mouseenter", Swal.stopTimer); t.addEventListener("mouseleave", Swal.resumeTimer); }
 });
 
@@ -52,7 +47,7 @@ function initTheme() {
 }
 
 /* =========================
-   Estado tablas
+   Estado/paginación tablas
    ========================= */
 const tableState = {
   brands:      { items: [], q: "", page: 1, pageSize: 10 },
@@ -60,20 +55,18 @@ const tableState = {
   fermenters:  { items: [], q: "", page: 1, pageSize: 10 },
   containers:  { items: [], q: "", page: 1, pageSize: 10 },
   labels:      { items: [], q: "", page: 1, pageSize: 10 },
-  // Movimientos (kardex)
   movements:   { items: [], q: "", page: 1, pageSize: 10, entity: "", itemId: "", from: "", to: "" }
 };
-
 const LABELS = {
   brands: "Marca", styles: "Estilo", fermenters: "Fermentador",
   containers: "Envase", labels: "Etiqueta", movements: "Movimiento"
 };
 
 /* =========================
-   Helpers UI / Fechas
+   Helpers UI y fechas
    ========================= */
-function renderIdShort(id){ return id ? id.slice(-6) : ""; }
-function renderColorSquare(color){ return color ? `<div class="color-box mx-auto" style="background:${color};"></div>` : ""; }
+function renderIdShort(id){ return id ? String(id).slice(-6) : ""; }
+function renderColorSquare(color){ return color ? `<div class="color-box mx-auto" style="width:18px;height:18px;border-radius:4px;background:${color};"></div>` : ""; }
 function renderDateLocal(s){
   if (!s) return "";
   if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(Z|[+\-]\d{2}:\d{2})$/.test(s)) {
@@ -90,7 +83,6 @@ const todayInputValue = () => {
   const dd = String(d.getDate()).padStart(2,"0");
   return `${yyyy}-${mm}-${dd}`;
 };
-// "YYYY-MM-DDTHH:mm" para <input type="datetime-local">
 const nowInputDateTime = () => {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -100,32 +92,13 @@ const nowInputDateTime = () => {
   const mi = String(d.getMinutes()).padStart(2,"0");
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 };
-// Convierte guardado → valor válido para input datetime-local
-function toDatetimeLocalValue(s){
-  if (!s) return nowInputDateTime();
-  const iso = new Date(s);
-  if (!isNaN(iso)) {
-    const yyyy = iso.getFullYear();
-    const mm = String(iso.getMonth()+1).padStart(2,"0");
-    const dd = String(iso.getDate()).padStart(2,"0");
-    const hh = String(iso.getHours()).padStart(2,"0");
-    const mi = String(iso.getMinutes()).padStart(2,"0");
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-  }
-  const m = String(s).trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
-  if (m) return `${m[1]}T${m[2]}:${m[3]}`;
-  const d = String(s).trim().match(/^(\d{4}-\d{2}-\d{2})$/);
-  if (d) return `${d[1]}T00:00`;
-  return nowInputDateTime();
-}
-// Valor del input "YYYY-MM-DDTHH:mm" → "YYYY-MM-DD HH:mm:ss"
 function fromDatetimeLocalValue(v){
   if (!v) return null;
-  return v.replace("T"," ") + ":00";
+  return String(v).replace("T"," ") + ":00";
 }
 
 /* =========================
-   CSV utils + ZIP
+   CSV + ZIP
    ========================= */
 function csvEscape(v){ let s = v == null ? "" : String(v); if (/[",\n]/.test(s)) s = `"${s.replace(/"/g,'""')}"`; return s; }
 function downloadFile(name, content){
@@ -165,7 +138,7 @@ async function exportAllCSVsZip(){
 }
 
 /* =========================
-   Movimientos: filtros + CSV + Totales + Diario
+   Movimientos (kardex)
    ========================= */
 function applyMovementFilters(list){
   const st = tableState.movements;
@@ -194,6 +167,12 @@ function exportMovementsCSV(){
   const lines = [headers.join(",")].concat(list.map(r => headers.map(h => csvEscape(r[h])).join(",")));
   downloadFile(`movimientos_${Date.now()}.csv`, lines.join("\n"));
 }
+function exportMovementsDailyCSV(){
+  const days = computeDailyWithBalance();
+  const headers = ["date","in","out","net","balance"];
+  const lines = [headers.join(",")].concat(days.map(d => [d.date,d.in,d.out,d.net,d.balance].join(",")));
+  downloadFile(`movimientos_diario_${Date.now()}.csv`, lines.join("\n"));
+}
 function computeTotals(list){
   let inSum = 0, outSum = 0;
   for (const r of list){
@@ -211,7 +190,6 @@ function renderMovementsTotals(){
   set("mv_total_out", t.out);
   set("mv_total_net", t.net);
 
-  // Desglose
   const wrap = document.getElementById("mv_breakdown_wrap");
   const tbody = document.querySelector("#mv_breakdown_table tbody");
   const title = document.getElementById("mv_breakdown_title");
@@ -262,7 +240,6 @@ function renderMovementsTotals(){
     wrap.classList.add("d-none");
   }
 }
-// Saldo apertura (antes de "desde"), respeta entidad+ítem
 function getOpeningBalance(){
   const st = tableState.movements;
   const from = st.from || "";
@@ -279,7 +256,6 @@ function getOpeningBalance(){
   }
   return altas - bajas;
 }
-// Diario + saldo
 function computeDailyWithBalance(){
   const list = getFilteredMovements();
   const map = new Map();
@@ -313,7 +289,7 @@ function renderMovementsDaily(){
 }
 
 /* =========================
-   Buscador + paginación
+   Buscador + paginación tablas
    ========================= */
 function setSearchHandlers(entity){
   const qIn = document.getElementById(`${entity}Search`);
@@ -360,7 +336,6 @@ async function loadItemsForEntity(entity){
   const rows = await apiGet(entity);
   return rows.map(r => ({ id: r.id, label: r.name || renderIdShort(r.id) }));
 }
-
 function setMovementsHandlers(){
   const selEntity = document.getElementById("mv_entity");
   const selItem   = document.getElementById("mv_item");
@@ -387,13 +362,11 @@ function setMovementsHandlers(){
     tableState.movements.page = 1;
     renderTable("movements");
   });
-
   selItem?.addEventListener("change", ()=>{
     tableState.movements.itemId = selItem.value;
     tableState.movements.page = 1;
     renderTable("movements");
   });
-
   from?.addEventListener("change", ()=>{ tableState.movements.from = from.value; tableState.movements.page=1; renderTable("movements"); });
   to  ?.addEventListener("change", ()=>{ tableState.movements.to   = to.value;   tableState.movements.page=1; renderTable("movements"); });
 
@@ -408,7 +381,6 @@ function setMovementsHandlers(){
   btnCSV ?.addEventListener("click", exportMovementsCSV);
   btnZIP ?.addEventListener("click", exportAllCSVsZip);
   btnDailyCSV?.addEventListener("click", exportMovementsDailyCSV);
-
   setSearchHandlers("movements");
 }
 
@@ -417,21 +389,16 @@ function setMovementsHandlers(){
    ========================= */
 function renderTable(entity, tableId = entity + "Table"){
   const st = tableState[entity];
-
   let filtered = st.items.filter(r => rowMatches(r, st.q.trim()));
   if (entity === "movements") filtered = applyMovementFilters(filtered);
-
   const pages = Math.max(1, Math.ceil(filtered.length / st.pageSize));
   if (st.page > pages) st.page = pages;
   const rows = filtered.slice((st.page-1)*st.pageSize, (st.page)*st.pageSize);
-
   const tbody = document.querySelector(`#${tableId} tbody`); if (!tbody) return;
   tbody.innerHTML = "";
-
   rows.forEach(row=>{
     const tr = document.createElement("tr");
     const pushTD = html => { const td=document.createElement("td"); td.innerHTML=html; td.style.verticalAlign="middle"; tr.appendChild(td); };
-
     if (entity==="brands") {
       pushTD(renderIdShort(row.id)); pushTD(row.name||""); pushTD(renderColorSquare(row.color)); pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="styles") {
@@ -441,24 +408,11 @@ function renderTable(entity, tableId = entity + "Table"){
     } else if (entity==="containers") {
       pushTD(renderIdShort(row.id)); pushTD(row.name||""); pushTD(row.sizeLiters||""); pushTD(row.type||""); pushTD(renderColorSquare(row.color)); pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="labels") {
-      pushTD(renderIdShort(row.id));
-      pushTD(row.brandName || "");
-      pushTD(row.isCustom ? (row.name||"(custom)") : (row.styleName||""));
-      pushTD(row.qty ?? 0);
-      pushTD(row.batch || "");
-      pushTD(row.provider || "");
-      pushTD(renderDateLocal(row.entryDate));          // ← fecha linda
-      pushTD(renderDateLocal(row.lastModified));
+      pushTD(renderIdShort(row.id)); pushTD(row.brandName || ""); pushTD(row.isCustom ? (row.name||"(custom)") : (row.styleName||""));
+      pushTD(row.qty ?? 0); pushTD(row.batch || ""); pushTD(row.provider || ""); pushTD(row.entryDate || ""); pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="movements") {
-      pushTD(renderIdShort(row.id));
-      pushTD(renderDateLocal(row.dateTime));
-      pushTD(row.entity || "");
-      pushTD(row.type || "");
-      pushTD(row.qty ?? 0);
-      pushTD(row.description || "");
-      pushTD(renderDateLocal(row.lastModified));
+      pushTD(renderIdShort(row.id)); pushTD(renderDateLocal(row.dateTime)); pushTD(row.entity || ""); pushTD(row.type || ""); pushTD(row.qty ?? 0); pushTD(row.description || ""); pushTD(renderDateLocal(row.lastModified));
     }
-
     if (entity!=="movements") {
       const tdA = document.createElement("td");
       tdA.innerHTML = `
@@ -466,21 +420,12 @@ function renderTable(entity, tableId = entity + "Table"){
         <button class="btn btn-sm btn-danger" onclick="handleDeleteClick(this,'${entity}','${row.id}')">Eliminar</button>`;
       tr.appendChild(tdA);
     }
-
     tbody.appendChild(tr);
   });
-
   renderPager(entity, pages);
-
-  if (entity === "movements") {
-    renderMovementsTotals();
-    renderMovementsDaily();
-  }
-  if (entity === "labels") {
-    renderLabelsSummary(tableState.labels.items);
-  }
+  if (entity === "movements") { renderMovementsTotals(); renderMovementsDaily(); }
+  if (entity === "labels") { renderLabelsSummary(tableState.labels.items); }
 }
-
 async function loadTable(entity, tableId){
   tableState[entity].items = await apiGet(entity);
   renderTable(entity, tableId);
@@ -493,7 +438,7 @@ async function loadMovements(){
 }
 
 /* =========================
-   Resumen de stock – Labels (por ESTILO)
+   Resumen de stock – Labels
    ========================= */
 function renderLabelsSummary(list){
   const totalUnits = list.reduce((a,x)=>a + (Number(x.qty)||0), 0);
@@ -503,42 +448,33 @@ function renderLabelsSummary(list){
     return isNaN(d) ? mx : Math.max(mx, d.getTime());
   }, 0);
   const lastStr = last ? new Date(last).toLocaleString() : "—";
-
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set("lbl_total_units", totalUnits);
   set("lbl_total_items", totalItems);
   const lm = document.getElementById("lbl_last_mod"); if (lm) lm.textContent = lastStr;
-
-  // Agrupar por estilo / nombre (custom)
-  const byStyle = new Map();
+  const byBrand = new Map();
   for (const r of list){
-    const key = r.isCustom ? `(custom) ${r.name || renderIdShort(r.id)}` : (r.styleName || "(sin estilo)");
-    byStyle.set(key, (byStyle.get(key) || 0) + (Number(r.qty)||0));
+    const k = String(r.brandName || "(s/marca)");
+    const q = Number(r.qty || 0);
+    byBrand.set(k, (byBrand.get(k) || 0) + q);
   }
-  const arr = Array.from(byStyle.entries()).sort((a,b)=>b[1]-a[1]);
-
-  const wrap = document.getElementById("lbl_by_style");
-  if (!wrap) return;
-  wrap.innerHTML = "";
-  for (const [name, qty] of arr){
-    const div = document.createElement("div");
-    div.className = "card shadow-sm";
-    div.style.minWidth = "180px";
-    div.innerHTML = `
-      <div class="card-body py-2 px-3">
-        <div class="small text-muted mb-1">${name}</div>
-        <div class="h6 m-0 text-end">${qty}</div>
-      </div>`;
-    wrap.appendChild(div);
+  const top = Array.from(byBrand.entries()).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const tb = document.getElementById("lbl_by_brand_tbody");
+  if (tb){
+    tb.innerHTML = "";
+    for (const [name, qty] of top){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${name}</td><td class="text-end">${qty}</td>`;
+      tb.appendChild(tr);
+    }
   }
 }
 
 /* =========================
-   Modal reutilizable + acciones
+   Modal CRUD reutilizable
    ========================= */
 let entityModal, entityModalEl, saveBtn;
 function initEntityModal(){ entityModalEl=document.getElementById('entityModal'); if(!entityModalEl) return; entityModal=new bootstrap.Modal(entityModalEl); saveBtn=document.getElementById('entityModalSave'); }
-
 function modalBodyHtml(entity, data={}, brands=[], styles=[]){
   if (entity==="brands"){
     return `
@@ -606,8 +542,8 @@ function modalBodyHtml(entity, data={}, brands=[], styles=[]){
           <input id="labelQty" type="number" class="form-control" value="${data.qty||1}" min="1">
         </div>
         <div class="col-sm-6">
-          <label class="form-label fw-semibold">Fecha y hora de ingreso</label>
-          <input id="labelEntryDateTime" type="datetime-local" class="form-control" value="${toDatetimeLocalValue(data.entryDate)}">
+          <label class="form-label fw-semibold">Fecha de ingreso</label>
+          <input id="labelEntryDate" type="date" class="form-control" value="${data.entryDate || todayInputValue()}">
         </div>
       </div>
 
@@ -623,40 +559,30 @@ function modalBodyHtml(entity, data={}, brands=[], styles=[]){
       </div>`;
   }
 }
-
 async function openEntityModal(entity, id=null){
   if (!entityModal) initEntityModal();
-
-  // Bloquear edición de marca si tiene estilos vinculados
   if (entity==="brands" && id){
     const styles = tableState.styles.items.length ? tableState.styles.items : await apiGet("styles");
     const linkedCount = styles.filter(s => String(s.brandId)===String(id)).length;
     if (linkedCount>0) { await Swal.fire({icon:"info",title:"No se puede editar",html:`Esta marca tiene <b>${linkedCount}</b> estilo(s) vinculados.<br>Primero eliminá los estilos.`}); return; }
   }
-
   const titleEl = document.getElementById('entityModalTitle');
   const bodyEl  = document.getElementById('entityModalBody');
-
   let data = {};
   if (id) data = await apiGet(entity, "getById", { id });
-
   let brands=[], styles=[];
   if (["styles","labels"].includes(entity)) {
     brands = await apiGet("brands");
     styles = await apiGet("styles");
   }
-
   titleEl.textContent = (id ? "Editar " : "Agregar ") + LABELS[entity];
   bodyEl.innerHTML = modalBodyHtml(entity, data, brands, styles);
-
-  // Dinámica para labels
   if (entity==="labels"){
     const brandSel = bodyEl.querySelector("#labelBrandId");
     const styleSel = bodyEl.querySelector("#labelStyleId");
     const isCustom = bodyEl.querySelector("#labelIsCustom");
     const wrapStyle = bodyEl.querySelector("#labelStyleWrap");
     const wrapName  = bodyEl.querySelector("#labelNameWrap");
-
     const rebuildStyles = ()=> {
       const brandId = brandSel.value;
       const opts = styles.filter(s=>String(s.brandId)===String(brandId))
@@ -664,7 +590,6 @@ async function openEntityModal(entity, id=null){
       styleSel.innerHTML = opts;
     };
     brandSel?.addEventListener("change", rebuildStyles);
-
     const toggleCustom = ()=>{
       const checked = isCustom.checked;
       if (checked){ wrapStyle.classList.add("d-none"); wrapName.classList.remove("d-none"); }
@@ -673,14 +598,11 @@ async function openEntityModal(entity, id=null){
     isCustom?.addEventListener("change", toggleCustom);
     toggleCustom();
   }
-
-  // Guardar (anti doble-click)
   saveBtn.disabled = false;
   saveBtn.onclick = async ()=>{
     try{
       saveBtn.disabled = true;
       let obj = { id };
-
       if (entity==="brands"){
         obj.name = document.getElementById("brandName").value.trim();
         obj.color = document.getElementById("brandColor").value;
@@ -712,41 +634,26 @@ async function openEntityModal(entity, id=null){
           obj.name = "";
         }
         obj.qty = Math.max(1, Number(document.getElementById("labelQty").value || 1));
-
-        const dt = document.getElementById("labelEntryDateTime").value;
-        obj.entryDate = fromDatetimeLocalValue(dt) || fromDatetimeLocalValue(nowInputDateTime());
-
+        obj.entryDate = document.getElementById("labelEntryDate").value || todayInputValue();
         obj.batch = document.getElementById("labelBatch").value.trim();
         obj.provider = document.getElementById("labelProvider").value.trim();
       }
-
       const saved = await apiPost(entity, obj);
       if (!saved.ok) throw new Error(saved.error || "No se pudo guardar");
       entityModal.hide();
       Toast.fire({ icon:"success", title:`${LABELS[entity]} guardado` });
-      await loadTable(entity, entity+"Table"); // labels dispara renderLabelsSummary()
+      await loadTable(entity, entity+"Table");
     } catch(err){
       console.error(err); Swal.fire("Error", err.message || "No se pudo guardar", "error");
     } finally { saveBtn.disabled = false; }
   };
-
   entityModal.show();
 }
-
-// Compat: si algún HTML usaba openModal(...)
 function openModal(entity, id=null){ return openEntityModal(entity,id); }
-
-/* =========================
-   Botones bloqueados
-   ========================= */
 async function disableDuring(btn, fn){ if(!btn) return fn(); const prev=btn.innerHTML; btn.disabled=true; btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>${btn.textContent}`; try{ await fn(); } finally{ btn.disabled=false; btn.innerHTML=prev; } }
 function handleAddClick(btn, entity){ disableDuring(btn, ()=>openEntityModal(entity)); }
 function handleEditClick(btn, entity, id){ disableDuring(btn, ()=>openEntityModal(entity,id)); }
 function handleDeleteClick(btn, entity, id){ disableDuring(btn, ()=>deleteItem(entity,id)); }
-
-/* =========================
-   Delete
-   ========================= */
 async function deleteItem(entity, id){
   if (entity==="brands"){
     const styles = tableState.styles.items.length ? tableState.styles.items : await apiGet("styles");
@@ -763,16 +670,14 @@ async function deleteItem(entity, id){
 }
 
 /* =========================
-   Index: Latas vacías (con fecha/hora opcional)
+   Index: Latas vacías (modal)
    ========================= */
 function initEmptyCans(){
   const btn = document.getElementById("btnAddEmptyCan");
   if (!btn) return;
-
   const modalEl = document.getElementById("emptyCansModal");
   const modal = new bootstrap.Modal(modalEl);
   const save = document.getElementById("ec_save");
-
   btn.addEventListener("click", ()=>{
     document.getElementById("ec_qty").value = 1;
     document.getElementById("ec_batch").value = "";
@@ -782,21 +687,16 @@ function initEmptyCans(){
     save.disabled = false;
     modal.show();
   });
-
   save.addEventListener("click", async ()=>{
     try{
       save.disabled = true;
       const qty = Math.max(1, Number(document.getElementById("ec_qty").value || 1));
       const batch = document.getElementById("ec_batch").value.trim();
       const manufacturer = document.getElementById("ec_manu").value.trim();
-      const dt = document.getElementById("ec_dt")?.value || "";
-      const entryDate = (dt && dt.includes("T")) ? dt.split("T")[0] : todayInputValue();
-      const entryDateTime = dt ? (dt.replace("T"," ") + ":00") : null;
-
-      const res = await apiPost("emptycans", { qty, batch, manufacturer, entryDate, entryDateTime });
+      const entryDate = fromDatetimeLocalValue(document.getElementById("ec_dt").value);
+      const res = await apiPost("emptycans", { qty, batch, manufacturer, entryDate });
       if (!res.ok) throw new Error(res.error || "No se pudo guardar");
-
-      modal.hide();
+      bootstrap.Modal.getInstance(document.getElementById("emptyCansModal"))?.hide();
       Toast.fire({ icon:"success", title:"Latas registradas" });
       await loadEmptyCans();
     } catch(e){
@@ -804,256 +704,206 @@ function initEmptyCans(){
     } finally { save.disabled = false; }
   });
 }
-
 async function loadEmptyCans(){
   const el = document.getElementById("emptyCansCount"); if(!el) return;
   try{ const data = await apiGet("emptycans","emptycans_count"); el.textContent = data.count ?? 0; } catch(e){ console.error(e); }
 }
 
 /* =========================
-   Init
+   PACKAGING / PRODUCCIÓN
+   ========================= */
+const packagingState = {
+  brands: [], styles: [], containers: [], labels: [],
+};
+function typeIsCan(t){ return /lata/i.test(String(t||"")); }
+function setQtyLabelForContainer(container){
+  const lbl = document.getElementById("pk_qty_label");
+  if (!lbl || !container) return;
+  lbl.textContent = `Cantidad (${typeIsCan(container.type) ? "latas" : "barriles"})`;
+}
+async function updateContainerStock(){
+  const sel = document.getElementById("pk_container");
+  const badge = document.getElementById("pk_container_stock");
+  if (!sel || !badge) return;
+  const id = sel.value;
+  if (!id){ badge.textContent = "—"; return; }
+  const c = packagingState.containers.find(x => String(x.id)===String(id));
+  setQtyLabelForContainer(c);
+  if (c && typeIsCan(c.type)){
+    try {
+      const data = await apiGet("emptycans","emptycans_count");
+      badge.textContent = (data.count ?? 0);
+    } catch(e){
+      console.error(e); badge.textContent = "—";
+    }
+  } else {
+    badge.textContent = "—";
+  }
+}
+function buildLabelOptions(){
+  const sel = document.getElementById("pk_labelSel");
+  const styleSel = document.getElementById("pk_style");
+  if (!sel) return;
+  const styleId = styleSel?.value || "";
+  const all = packagingState.labels || [];
+  // Agrupar: por estilo (no custom) y por nombre (custom). Sumar stock.
+  const byStyle = new Map();
+  const byCustom = new Map();
+  for (const r of all){
+    const qty = Number(r.qty||0);
+    if (r.isCustom){
+      const key = (String(r.name||"").trim().toLowerCase());
+      byCustom.set(key, (byCustom.get(key)||{name:r.name, qty:0}));
+      byCustom.get(key).qty += qty;
+    } else {
+      const key = String(r.styleId||"");
+      if (!key) continue;
+      if (!byStyle.has(key)) byStyle.set(key, {styleId:key, styleName:r.styleName, qty:0});
+      byStyle.get(key).qty += qty;
+    }
+  }
+  // Construir opciones (únicas)
+  const opt = [];
+  opt.push(`<option value="">— Sin etiqueta —</option>`);
+  // sugerida por estilo seleccionado primero
+  if (styleId && byStyle.has(styleId)){
+    const v = byStyle.get(styleId);
+    opt.push(`<option value="style:${v.styleId}">${v.styleName} — ${v.qty}</option>`);
+    opt.push(`<option disabled>──────────</option>`);
+  }
+  // todas por estilo (excluye la sugerida)
+  Array.from(byStyle.values())
+    .filter(v => v.styleId !== styleId)
+    .sort((a,b)=>a.styleName.localeCompare(b.styleName))
+    .forEach(v => opt.push(`<option value="style:${v.styleId}">${v.styleName} — ${v.qty}</option>`));
+  // custom
+  if (byCustom.size){
+    if (!styleId) opt.push(`<option disabled>──────────</option>`);
+    Array.from(byCustom.values())
+      .sort((a,b)=>a.name.localeCompare(b.name))
+      .forEach(v => opt.push(`<option value="custom:${v.name}">(custom) ${v.name} — ${v.qty}</option>`));
+  }
+  sel.innerHTML = opt.join("");
+}
+function toggleLabelEnable(){
+  const chk = document.getElementById("pk_labeled");
+  const sel = document.getElementById("pk_labelSel");
+  const contSel = document.getElementById("pk_container");
+  const c = packagingState.containers.find(x => String(x.id)===String(contSel.value));
+  const isCan = c && typeIsCan(c.type);
+  const enabled = !!chk?.checked && isCan;
+  if (sel) { sel.disabled = !enabled; if (!enabled) sel.value=""; }
+}
+async function loadPackagingCatalogs(){
+  const [brands, styles, containers, labels] = await Promise.all([
+    apiGet("brands"), apiGet("styles"), apiGet("containers"), apiGet("labels")
+  ]);
+  packagingState.brands = brands;
+  packagingState.styles = styles;
+  packagingState.containers = containers;
+  packagingState.labels = labels;
+  // fill selects
+  const bSel = document.getElementById("pk_brand");
+  const sSel = document.getElementById("pk_style");
+  const cSel = document.getElementById("pk_container");
+  if (bSel){
+    bSel.innerHTML = `<option value="">— Elegí marca —</option>` + brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
+  }
+  if (sSel){
+    sSel.innerHTML = `<option value="">— Elegí marca primero —</option>`;
+    sSel.disabled = true;
+  }
+  if (cSel){
+    cSel.innerHTML = `<option value="">— Seleccionar —</option>` + containers.map(c=>`<option value="${c.id}">${c.name} (${c.type||"?"})</option>`).join("");
+  }
+  buildLabelOptions();
+  await updateContainerStock();
+}
+function wiringPackagingUI(){
+  const bSel = document.getElementById("pk_brand");
+  const sSel = document.getElementById("pk_style");
+  const cSel = document.getElementById("pk_container");
+  const qty = document.getElementById("pk_qty");
+  const chkLbl = document.getElementById("pk_labeled");
+  const chkPas = document.getElementById("pk_pasteurized");
+  const btnClear = document.getElementById("pk_clear");
+  const btnSubmit = document.getElementById("pk_submit");
+
+  bSel?.addEventListener("change", ()=>{
+    const brandId = bSel.value;
+    if (!brandId){ sSel.innerHTML = `<option value="">— Elegí marca primero —</option>`; sSel.disabled = true; return; }
+    const styles = packagingState.styles.filter(s=>String(s.brandId)===String(brandId));
+    sSel.innerHTML = styles.map(s=>`<option value="${s.id}">${s.name}</option>`).join("") || `<option value="">(sin estilos)</option>`;
+    sSel.disabled = false;
+    buildLabelOptions();
+  });
+  sSel?.addEventListener("change", buildLabelOptions);
+  cSel?.addEventListener("change", ()=>{ updateContainerStock(); toggleLabelEnable(); });
+  chkLbl?.addEventListener("change", toggleLabelEnable);
+  btnClear?.addEventListener("click", ()=>{
+    bSel.value=""; sSel.innerHTML=`<option value="">— Elegí marca primero —</option>`; sSel.disabled=true;
+    cSel.value=""; qty.value="24"; chkLbl.checked=false; chkPas.checked=false;
+    updateContainerStock(); buildLabelOptions(); toggleLabelEnable();
+  });
+  btnSubmit?.addEventListener("click", async ()=>{
+    try{
+      const brandId = bSel.value;
+      const styleId = sSel.value;
+      const containerId = cSel.value;
+      const container = packagingState.containers.find(c=>String(c.id)===String(containerId));
+      const qtyVal = Math.max(1, Number(qty.value||0));
+      const pasteurized = !!document.getElementById("pk_pasteurized").checked;
+      const labeled = !!document.getElementById("pk_labeled").checked;
+      if (!brandId || !styleId || !containerId || !qtyVal){ Swal.fire("Datos incompletos","Completá marca, estilo, envase y cantidad.","warning"); return; }
+      let labelChoice = "";
+      if (labeled && container && typeIsCan(container.type)){
+        labelChoice = document.getElementById("pk_labelSel").value || "";
+      }
+      const style = packagingState.styles.find(s=>String(s.id)===String(styleId));
+      const brand = packagingState.brands.find(b=>String(b.id)===String(brandId));
+      const payload = {
+        brandId, brandName: brand?.name||"", styleId, styleName: style?.name||"",
+        containerId, qty: qtyVal, pasteurized, labeled, labelChoice
+      };
+      const res = await apiPost("production", payload, "produce");
+      if (!res.ok) throw new Error(res.error || "Backend no aceptó la operación");
+      Toast.fire({icon:"success", title:"Producción registrada"});
+      // refrescos rápidos
+      if (container && typeIsCan(container.type)) await updateContainerStock();
+      packagingState.labels = await apiGet("labels"); // por si descontó etiquetas
+      buildLabelOptions();
+    } catch(e){
+      console.error(e); Swal.fire("Error", e.message || "No se pudo registrar", "error");
+    }
+  });
+  toggleLabelEnable();
+}
+async function initPackaging(){
+  if (!document.getElementById("pk_brand")) return;
+  await loadPackagingCatalogs();
+  wiringPackagingUI();
+}
+
+/* =========================
+   Boot
    ========================= */
 async function boot(){
   initTheme();
   initEntityModal();
   initEmptyCans();
   await loadEmptyCans();
-
-  // CONFIG
   if (document.getElementById("brandsTable")) {
     await loadTable("brands","brandsTable");
     await loadTable("styles","stylesTable");
     await loadTable("fermenters","fermentersTable");
     await loadTable("containers","containersTable");
   }
-  // ETIQUETAS
   if (document.getElementById("labelsTable")) {
-    await loadTable("labels","labelsTable"); // también arma el resumen
+    await loadTable("labels","labelsTable");
   }
-  // MOVIMIENTOS
   if (document.getElementById("movementsTable")) {
     await loadMovements();
   }
-  // PRODUCCIÓN
-  if (document.getElementById("productionForm")) {
-    await initProductionPage();
-  }
-  // EMPAQUETADO
-  if (document.getElementById("packagingForm")) {
-    await initPackagingPage();
-  }
+  await initPackaging();
 }
-/* =========================
-   Producción (registrar lotes)
-   ========================= */
-async function initProductionPage(){
-  const brandSel = document.getElementById("prod_brand");
-  const styleSel = document.getElementById("prod_style");
-  const contSel  = document.getElementById("prod_container");
-  const labeledChk = document.getElementById("prod_labeled");
-  const labelSel = document.getElementById("prod_label");
-  const pastChk  = document.getElementById("prod_pasteurized");
-  const qtyIn    = document.getElementById("prod_qty");
-  const dtIn     = document.getElementById("prod_dt");
-  const btnSave  = document.getElementById("prod_save");
-
-  if (!brandSel || !styleSel || !contSel || !qtyIn || !btnSave) return;
-
-  // Cargar combos
-  const [brands, styles, containers, labels] = await Promise.all([
-    apiGet("brands"),
-    apiGet("styles"),
-    apiGet("containers"),
-    apiGet("labels"),
-  ]);
-
-  // Brands
-  brandSel.innerHTML = brands.map(b=> `<option value="${b.id}">${b.name}</option>`).join("");
-  // Containers (solo latas por defecto)
-  const lataFirst = (a,b)=> (String(a.type||"") === "lata" ? -1 : 1);
-  containers.sort(lataFirst);
-  contSel.innerHTML = containers.map(c=> `<option value="${c.id}">${c.name} (${c.type||"?"})</option>`).join("");
-
-  const rebuildStyles = ()=>{
-    const bid = brandSel.value;
-    const list = styles.filter(s=> String(s.brandId) === String(bid));
-    styleSel.innerHTML = list.map(s=> `<option value="${s.id}">${s.name}</option>`).join("");
-    rebuildLabels();
-  };
-  const rebuildLabels = ()=>{
-    const sid = styleSel.value;
-    // por defecto ofrezco etiquetas por styleId (no-custom) + opción "ninguna"
-    const opts = [`<option value="">— Sin etiqueta —</option>`]
-      .concat(labels
-        .filter(l => !l.isCustom && String(l.styleId) === String(sid))
-        .map(l => `<option value="${l.id}">${l.brandName || ""} ${l.styleName || ""}</option>`));
-    // separador + todas (por si quieren cambiar a otra)
-    opts.push(`<option value="" disabled>──────────</option>`);
-    opts.push(...labels.map(l=>{
-      const nom = l.isCustom ? `(custom) ${l.name}` : `${l.brandName||""} ${l.styleName||""}`;
-      return `<option value="${l.id}">${nom}</option>`;
-    }));
-    labelSel.innerHTML = opts.join("");
-  };
-
-  brandSel.addEventListener("change", rebuildStyles);
-  styleSel.addEventListener("change", rebuildLabels);
-
-  // etiquetada ON/OFF habilita el select label
-  const toggleLabel = ()=>{
-    labelSel.disabled = !labeledChk.checked;
-    if (!labeledChk.checked) labelSel.value = "";
-  };
-  labeledChk.addEventListener("change", toggleLabel);
-
-  // init valores
-  rebuildStyles();
-  toggleLabel();
-  if (dtIn) dtIn.value = nowInputDateTime();
-
-  btnSave.addEventListener("click", async ()=>{
-    try{
-      btnSave.disabled = true;
-      const styleId = styleSel.value;
-      const brand = brands.find(b => String(b.id) === String(brandSel.value));
-      const st    = styles.find(s => String(s.id) === String(styleId));
-      const containerId = contSel.value;
-      const container   = containers.find(c => String(c.id) === String(containerId));
-
-      const qty = Math.max(1, Number(qtyIn.value || 0));
-      if (!st) throw new Error("Elegí un estilo");
-      if (!container) throw new Error("Elegí un envase");
-      const labeled = !!labeledChk.checked;
-      const labelId = labeled ? labelSel.value : "";
-      if (labeled && !labelId) throw new Error("Seleccioná una etiqueta o desmarcá 'Etiquetada'");
-
-      const payload = {
-        styleId, brandId: st.brandId,
-        containerId,
-        labeled, labelId,
-        pasteurized: !!pastChk.checked,
-        qty,
-        dateTime: dtIn ? (dtIn.value ? (dtIn.value.replace("T"," ") + ":00") : null) : null
-      };
-
-      const res = await apiPost("production", payload, "register_production");
-      if (!res.ok) throw new Error(res.error || "No se pudo registrar la producción");
-
-      Swal.fire({icon:"success", title:"Producción registrada", timer:1400, showConfirmButton:false});
-      // reset suaves
-      qtyIn.value = 24;
-      if (dtIn) dtIn.value = nowInputDateTime();
-    } catch(e){
-      console.error(e);
-      Swal.fire("Error", e.message || "No se pudo registrar", "error");
-    } finally { btnSave.disabled = false; }
-  });
-}
-
-/* =========================
-   Empaquetado (cajas 12 o 24)
-   ========================= */
-async function initPackagingPage(){
-  const brandSel = document.getElementById("pack_brand");
-  const styleSel = document.getElementById("pack_style");
-  const stateSel = document.getElementById("pack_state");
-  const labelSel = document.getElementById("pack_label");
-  const typeSel  = document.getElementById("pack_type");
-  const boxesIn  = document.getElementById("pack_boxes");
-  const dtIn     = document.getElementById("pack_dt");
-  const btnPack  = document.getElementById("pack_do");
-  const stockWrap= document.getElementById("pack_stock_wrap");
-  const stockTBody = document.querySelector("#pack_stock_table tbody");
-
-  if (!brandSel || !styleSel || !typeSel || !boxesIn || !btnPack) return;
-
-  const [brands, styles, labels] = await Promise.all([
-    apiGet("brands"), apiGet("styles"), apiGet("labels")
-  ]);
-
-  // Cargar combos
-  brandSel.innerHTML = brands.map(b=> `<option value="${b.id}">${b.name}</option>`).join("");
-  const rebuildStyles = ()=>{
-    const bid = brandSel.value;
-    const list = styles.filter(s=> String(s.brandId) === String(bid));
-    styleSel.innerHTML = list.map(s=> `<option value="${s.id}">${s.name}</option>`).join("");
-    rebuildLabels();
-    refreshStock();
-  };
-  const rebuildLabels = ()=>{
-    const sid = styleSel.value;
-    const opts = [`<option value="">(Cualquier etiqueta)</option>`]
-      .concat(labels
-        .filter(l => !l.isCustom && String(l.styleId) === String(sid))
-        .map(l => `<option value="${l.id}">${l.brandName||""} ${l.styleName||""}</option>`));
-    // custom + todas
-    opts.push(`<option value="" disabled>──────────</option>`);
-    opts.push(...labels.map(l=>{
-      const nom = l.isCustom ? `(custom) ${l.name}` : `${l.brandName||""} ${l.styleName||""}`;
-      return `<option value="${l.id}">${nom}</option>`;
-    }));
-    labelSel.innerHTML = opts.join("");
-  };
-  brandSel.addEventListener("change", rebuildStyles);
-  styleSel.addEventListener("change", ()=>{ rebuildLabels(); refreshStock(); });
-  labelSel.addEventListener("change", refreshStock);
-  stateSel?.addEventListener("change", refreshStock);
-
-  if (dtIn) dtIn.value = nowInputDateTime();
-  rebuildStyles();
-
-  async function refreshStock(){
-    if (!stockWrap || !stockTBody) return;
-    stockTBody.innerHTML = `<tr><td colspan="4" class="text-muted">Cargando…</td></tr>`;
-    try{
-      const data = await apiGet("cans","cans_stock");
-      const sid = styleSel.value;
-      const lid = labelSel.value;
-      const stt = stateSel?.value || "";
-      const rows = (Array.isArray(data)?data:[])
-        .filter(r => String(r.styleId) === String(sid))
-        .filter(r => !lid || String(r.labelId) === String(lid))
-        .filter(r => !stt || String(r.state) === String(stt));
-      stockTBody.innerHTML = "";
-      if (rows.length === 0) {
-        stockTBody.innerHTML = `<tr><td colspan="4" class="text-muted">Sin stock</td></tr>`;
-      } else {
-        rows.forEach(r=>{
-          const tr = document.createElement("tr");
-          tr.innerHTML = `<td>${r.state}</td><td>${r.labelName||"—"}</td><td class="text-end">${r.qty}</td><td>${r.lastModified||""}</td>`;
-          stockTBody.appendChild(tr);
-        });
-      }
-      stockWrap.classList.remove("d-none");
-    } catch{ stockWrap.classList.add("d-none"); }
-  }
-
-  btnPack.addEventListener("click", async ()=>{
-    try{
-      btnPack.disabled = true;
-      const styleId = styleSel.value;
-      if (!styleId) throw new Error("Elegí un estilo");
-      const type = typeSel.value; // box12 | box24
-      const boxes = Math.max(1, Number(boxesIn.value||0));
-      const labelId = labelSel.value || "";
-      const state = stateSel?.value || ""; // "" = cualquiera
-      const dateTime = dtIn ? (dtIn.value ? (dtIn.value.replace("T"," ") + ":00") : null) : null;
-
-      const res = await apiPost("packages", { styleId, labelId, state, type, boxes, dateTime }, "package");
-      if (!res.ok) throw new Error(res.error || "No se pudo empaquetar");
-
-      Swal.fire({icon:"success", title:"Empaquetado registrado", timer:1400, showConfirmButton:false});
-      refreshStock();
-    } catch(e){
-      console.error(e);
-      Swal.fire("Error", e.message || "No se pudo empaquetar", "error");
-    } finally { btnPack.disabled = false; }
-  });
-}
-
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", boot);
-} else {
-  boot();
-}
+if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", boot); } else { boot(); }
