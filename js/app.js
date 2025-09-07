@@ -249,6 +249,21 @@ function modalBodyHtml(entity, data = {}, brands = []) {
 
 async function openEntityModal(entity, id = null) {
   if (!entityModal) initEntityModal();
+
+  // 🔒 Bloquear edición de MARCA si tiene estilos vinculados
+  if (entity === "brands" && id) {
+    const styles = tableState.styles.items.length ? tableState.styles.items : await apiGet("styles");
+    const linkedCount = styles.filter(s => String(s.brandId) === String(id)).length;
+    if (linkedCount > 0) {
+      await Swal.fire({
+        icon: "info",
+        title: "No se puede editar",
+        html: `Esta marca tiene <b>${linkedCount}</b> estilo(s) vinculados.<br>Primero eliminá los estilos asociados.`
+      });
+      return;
+    }
+  }
+
   const titleEl = document.getElementById('entityModalTitle');
   const bodyEl  = document.getElementById('entityModalBody');
 
@@ -330,24 +345,23 @@ function handleDeleteClick(btn, entity, id) {
 
 /* ---------- Delete con confirmación ---------- */
 async function deleteItem(entity, id) {
-  let htmlExtra = "";
-  let cascade = false;
+  // 🔒 Bloquear eliminación de MARCA si tiene estilos vinculados
   if (entity === "brands") {
     const styles = tableState.styles.items.length ? tableState.styles.items : await apiGet("styles");
     const linkedCount = styles.filter(s => String(s.brandId) === String(id)).length;
     if (linkedCount > 0) {
-      htmlExtra = `
-        <p class="mb-2">Esta marca tiene <b>${linkedCount}</b> estilo(s) vinculados.</p>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="cascadeDelete">
-          <label class="form-check-label" for="cascadeDelete">Eliminar también los estilos vinculados</label>
-        </div>`;
+      await Swal.fire({
+        icon: "info",
+        title: "No se puede eliminar",
+        html: `Esta marca tiene <b>${linkedCount}</b> estilo(s) vinculados.<br>Primero eliminá los estilos asociados.`
+      });
+      return;
     }
   }
 
   const r = await Swal.fire({
     title: "¿Eliminar?",
-    html: htmlExtra || "Esta acción no se puede deshacer.",
+    text: "Esta acción no se puede deshacer.",
     icon: "warning",
     showCancelButton: true,
     confirmButtonText: "Sí, eliminar",
@@ -355,8 +369,7 @@ async function deleteItem(entity, id) {
     showLoaderOnConfirm: true,
     allowOutsideClick: () => !Swal.isLoading(),
     preConfirm: async () => {
-      cascade = document.getElementById("cascadeDelete")?.checked || false;
-      const res = await apiDelete(entity, id, cascade);
+      const res = await apiDelete(entity, id, false); // sin cascada
       if (!res.ok) throw new Error(res.error || "No se pudo eliminar");
       return true;
     }
