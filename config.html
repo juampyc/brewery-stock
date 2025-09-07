@@ -35,50 +35,102 @@
     <div class="tab-content">
       <!-- Marcas -->
       <div class="tab-pane fade show active" id="brandsTab">
-        <div class="d-flex justify-content-between mb-2">
-          <h5>Marcas</h5>
-          <button class="btn btn-sm btn-primary" onclick="openModal('brands')">Agregar</button>
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <h5 class="m-0">Marcas</h5>
+          <button class="btn btn-sm btn-primary ms-2" onclick="openModal('brands')">Agregar</button>
+          <div class="ms-auto d-flex gap-2">
+            <input id="brandsSearch" class="form-control form-control-sm" placeholder="Buscar…">
+            <select id="brandsPageSize" class="form-select form-select-sm" style="width:auto">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
         </div>
+
         <table id="brandsTable" class="table table-striped">
           <thead><tr><th>ID</th><th>Nombre</th><th>Color</th><th>Última modificación</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
+
+        <nav aria-label="Brands pagination">
+          <ul id="brandsPager" class="pagination pagination-sm"></ul>
+        </nav>
       </div>
 
       <!-- Estilos -->
       <div class="tab-pane fade" id="stylesTab">
-        <div class="d-flex justify-content-between mb-2">
-          <h5>Estilos</h5>
-          <button class="btn btn-sm btn-primary" onclick="openModal('styles')">Agregar</button>
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <h5 class="m-0">Estilos</h5>
+          <button class="btn btn-sm btn-primary ms-2" onclick="openModal('styles')">Agregar</button>
+          <div class="ms-auto d-flex gap-2">
+            <input id="stylesSearch" class="form-control form-control-sm" placeholder="Buscar…">
+            <select id="stylesPageSize" class="form-select form-select-sm" style="width:auto">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
         </div>
+
         <table id="stylesTable" class="table table-striped">
           <thead><tr><th>ID</th><th>Marca</th><th>Nombre</th><th>Color</th><th>Mostrar siempre</th><th>Última modificación</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
+
+        <nav aria-label="Styles pagination">
+          <ul id="stylesPager" class="pagination pagination-sm"></ul>
+        </nav>
       </div>
 
       <!-- Fermentadores -->
       <div class="tab-pane fade" id="fermentersTab">
-        <div class="d-flex justify-content-between mb-2">
-          <h5>Fermentadores</h5>
-          <button class="btn btn-sm btn-primary" onclick="openModal('fermenters')">Agregar</button>
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <h5 class="m-0">Fermentadores</h5>
+          <button class="btn btn-sm btn-primary ms-2" onclick="openModal('fermenters')">Agregar</button>
+          <div class="ms-auto d-flex gap-2">
+            <input id="fermentersSearch" class="form-control form-control-sm" placeholder="Buscar…">
+            <select id="fermentersPageSize" class="form-select form-select-sm" style="width:auto">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
         </div>
+
         <table id="fermentersTable" class="table table-striped">
           <thead><tr><th>ID</th><th>Nombre</th><th>Tamaño (L)</th><th>Color</th><th>Última modificación</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
+
+        <nav aria-label="Fermenters pagination">
+          <ul id="fermentersPager" class="pagination pagination-sm"></ul>
+        </nav>
       </div>
 
       <!-- Envases -->
       <div class="tab-pane fade" id="containersTab">
-        <div class="d-flex justify-content-between mb-2">
-          <h5>Envases</h5>
-          <button class="btn btn-sm btn-primary" onclick="openModal('containers')">Agregar</button>
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <h5 class="m-0">Envases</h5>
+          <button class="btn btn-sm btn-primary ms-2" onclick="openModal('containers')">Agregar</button>
+          <div class="ms-auto d-flex gap-2">
+            <input id="containersSearch" class="form-control form-control-sm" placeholder="Buscar…">
+            <select id="containersPageSize" class="form-select form-select-sm" style="width:auto">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
         </div>
+
         <table id="containersTable" class="table table-striped">
           <thead><tr><th>ID</th><th>Nombre</th><th>Tamaño (L)</th><th>Tipo</th><th>Color</th><th>Última modificación</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
+
+        <nav aria-label="Containers pagination">
+          <ul id="containersPager" class="pagination pagination-sm"></ul>
+        </nav>
       </div>
     </div>
   </main>

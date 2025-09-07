@@ -4,6 +4,20 @@
 */
 const API_BASE = "https://script.google.com/macros/s/AKfycbxqI4TZxWb6ZQ7bfW8k5v5zEpqe57o66zoTfxNEkcyZ74McJkrwpjeSEXK8NJSxhgRo/exec";
 
+const tableState = {
+  brands: { items: [], q: "", page: 1, pageSize: 10 },
+  styles: { items: [], q: "", page: 1, pageSize: 10 },
+  fermenters: { items: [], q: "", page: 1, pageSize: 10 },
+  containers: { items: [], q: "", page: 1, pageSize: 10 },
+};
+
+function setSearchHandlers(entity) {
+  const qIn = document.getElementById(`${entity}Search`);
+  const ps  = document.getElementById(`${entity}PageSize`);
+  if (qIn) qIn.addEventListener("input", () => { tableState[entity].q = qIn.value; tableState[entity].page = 1; renderTable(entity); });
+  if (ps)  ps.addEventListener("change", () => { tableState[entity].pageSize = Number(ps.value); tableState[entity].page = 1; renderTable(entity); });
+}
+
 /* ---------- API ---------- */
 async function apiGet(entity, action = "getAll", extra = {}) {
   const params = new URLSearchParams({ entity, action, ...extra });
@@ -65,45 +79,105 @@ const LABELS = { brands: "Marca", styles: "Estilo", fermenters: "Fermentador", c
 
 /* ---------- Tablas ---------- */
 async function loadTable(entity, tableId) {
-  try {
-    const items = await apiGet(entity);
-    const tbody = document.querySelector(`#${tableId} tbody`);
-    tbody.innerHTML = "";
-
-    items.forEach((row) => {
-      const tr = document.createElement("tr");
-      const cells = [];
-
-      if (entity === "brands") {
-        cells.push(renderIdShort(row.id), row.name || "", renderColorSquare(row.color), renderDateLocal(row.lastModified));
-      } else if (entity === "styles") {
-        cells.push(renderIdShort(row.id), row.brandName || "", row.name || "", renderColorSquare(row.color), row.showAlways ? "✔" : "", renderDateLocal(row.lastModified));
-      } else if (entity === "fermenters") {
-        cells.push(renderIdShort(row.id), row.name || "", row.sizeLiters || "", renderColorSquare(row.color), renderDateLocal(row.lastModified));
-      } else if (entity === "containers") {
-        cells.push(renderIdShort(row.id), row.name || "", row.sizeLiters || "", row.type || "", renderColorSquare(row.color), renderDateLocal(row.lastModified));
-      }
-
-      cells.forEach((html) => {
-        const td = document.createElement("td");
-        td.innerHTML = html;
-        td.style.verticalAlign = "middle";
-        tr.appendChild(td);
-      });
-
-      const tdA = document.createElement("td");
-      tdA.innerHTML = `
-        <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}','${row.id}')">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>`;
-      tr.appendChild(tdA);
-
-      tbody.appendChild(tr);
-    });
-  } catch (err) {
-    console.error(err);
-    Swal.fire("Error", "No se pudieron cargar " + LABELS[entity] + "s", "error");
-  }
+  const items = await apiGet(entity);
+  tableState[entity].items = items;
+  renderTable(entity, tableId);
+  setSearchHandlers(entity);
 }
+
+function rowMatches(row, q) {
+  if (!q) return true;
+  const s = JSON.stringify(row).toLowerCase();
+  return s.includes(q.toLowerCase());
+}
+
+function renderTable(entity, tableId = entity + "Table") {
+  const st = tableState[entity];
+  const q = st.q.trim();
+  const filtered = st.items.filter(r => rowMatches(r, q));
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / st.pageSize));
+  if (st.page > pages) st.page = pages;
+  const start = (st.page - 1) * st.pageSize;
+  const pageRows = filtered.slice(start, start + st.pageSize);
+
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = "";
+
+  pageRows.forEach((row) => {
+    const tr = document.createElement("tr");
+    const pushTD = (html) => {
+      const td = document.createElement("td");
+      td.innerHTML = html;
+      td.style.verticalAlign = "middle";
+      tr.appendChild(td);
+    };
+
+    if (entity === "brands") {
+      pushTD(renderIdShort(row.id));
+      pushTD(row.name || "");
+      pushTD(renderColorSquare(row.color));
+      pushTD(renderDateLocal(row.lastModified));
+    } else if (entity === "styles") {
+      pushTD(renderIdShort(row.id));
+      pushTD(row.brandName || "");
+      pushTD(row.name || "");
+      pushTD(renderColorSquare(row.color));
+      pushTD(row.showAlways ? "✔" : "");
+      pushTD(renderDateLocal(row.lastModified));
+    } else if (entity === "fermenters") {
+      pushTD(renderIdShort(row.id));
+      pushTD(row.name || "");
+      pushTD(row.sizeLiters || "");
+      pushTD(renderColorSquare(row.color));
+      pushTD(renderDateLocal(row.lastModified));
+    } else if (entity === "containers") {
+      pushTD(renderIdShort(row.id));
+      pushTD(row.name || "");
+      pushTD(row.sizeLiters || "");
+      pushTD(row.type || "");
+      pushTD(renderColorSquare(row.color));
+      pushTD(renderDateLocal(row.lastModified));
+    }
+
+    const tdA = document.createElement("td");
+    tdA.innerHTML = `
+      <button class="btn btn-sm btn-warning me-1" onclick="openModal('${entity}','${row.id}')">Editar</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>`;
+    tr.appendChild(tdA);
+
+    tbody.appendChild(tr);
+  });
+
+  // paginación
+  renderPager(entity, pages);
+}
+
+function renderPager(entity, pages) {
+  const ul = document.getElementById(`${entity}Pager`);
+  if (!ul) return;
+  const st = tableState[entity];
+  ul.innerHTML = "";
+
+  const add = (label, page, disabled, active) => {
+    const li = document.createElement("li");
+    li.className = `page-item ${disabled ? "disabled" : ""} ${active ? "active" : ""}`;
+    const a = document.createElement("a");
+    a.className = "page-link";
+    a.href = "#";
+    a.textContent = label;
+    a.onclick = (e) => { e.preventDefault(); if (disabled || active) return; st.page = page; renderTable(entity); };
+    li.appendChild(a);
+    ul.appendChild(li);
+  };
+
+  add("«", 1, st.page === 1, false);
+  add("‹", Math.max(1, st.page - 1), st.page === 1, false);
+  for (let p = 1; p <= pages; p++) add(String(p), p, false, p === st.page);
+  add("›", Math.min(pages, st.page + 1), st.page === pages, false);
+  add("»", pages, st.page === pages, false);
+}
+
 
 /* ---------- Modales ---------- */
 function modalHtml(entity, data = {}, brands = []) {
@@ -158,71 +232,96 @@ async function openModal(entity, id = null) {
   let data = {};
   if (id) data = await apiGet(entity, "getById", { id });
 
-  // Para estilos, traemos marcas para el select
+  // para estilos: select de marcas
   let brands = [];
   if (entity === "styles") brands = await apiGet("brands");
 
   const cfg = modalHtml(entity, data, brands);
-  const { isConfirmed } = await Swal.fire({
+  const result = await Swal.fire({
     title: cfg.title,
     html: cfg.html,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: "Guardar",
     cancelButtonText: "Cancelar",
-    width: 640
+    width: 640,
+    showLoaderOnConfirm: true,
+    allowOutsideClick: () => !Swal.isLoading(),
+    preConfirm: async () => {
+      let obj = { id };
+      if (entity === "brands") {
+        obj.name = document.getElementById("brandName").value.trim();
+        obj.color = document.getElementById("brandColor").value;
+      } else if (entity === "styles") {
+        const sel = document.getElementById("styleBrandId");
+        obj.brandId = sel.value;
+        obj.brandName = sel.options[sel.selectedIndex].text;
+        obj.name = document.getElementById("styleName").value.trim();
+        obj.color = document.getElementById("styleColor").value;
+        obj.showAlways = document.getElementById("styleShowAlways").checked;
+      } else if (entity === "fermenters") {
+        obj.name = document.getElementById("fermenterName").value.trim();
+        obj.sizeLiters = Number(document.getElementById("fermenterSize").value);
+        obj.color = document.getElementById("fermenterColor").value;
+      } else if (entity === "containers") {
+        obj.name = document.getElementById("containerName").value.trim();
+        obj.sizeLiters = Number(document.getElementById("containerSize").value);
+        obj.type = document.getElementById("containerType").value.trim();
+        obj.color = document.getElementById("containerColor").value;
+      }
+      const saved = await apiPost(entity, obj);
+      if (!saved.ok) throw new Error(saved.error || "No se pudo guardar");
+      return saved.item;
+    }
   });
-  if (!isConfirmed) return;
 
-  let obj = { id };
-  if (entity === "brands") {
-    obj.name = document.getElementById("brandName").value.trim();
-    obj.color = document.getElementById("brandColor").value;
-  } else if (entity === "styles") {
-    const sel = document.getElementById("styleBrandId");
-    obj.brandId = sel.value;
-    obj.brandName = sel.options[sel.selectedIndex].text;
-    obj.name = document.getElementById("styleName").value.trim();
-    obj.color = document.getElementById("styleColor").value;
-    obj.showAlways = document.getElementById("styleShowAlways").checked;
-  } else if (entity === "fermenters") {
-    obj.name = document.getElementById("fermenterName").value.trim();
-    obj.sizeLiters = Number(document.getElementById("fermenterSize").value);
-    obj.color = document.getElementById("fermenterColor").value;
-  } else if (entity === "containers") {
-    obj.name = document.getElementById("containerName").value.trim();
-    obj.sizeLiters = Number(document.getElementById("containerSize").value);
-    obj.type = document.getElementById("containerType").value.trim();
-    obj.color = document.getElementById("containerColor").value;
-  }
-
-  const saved = await apiPost(entity, obj);
-  if (saved.ok) {
+  if (result.isConfirmed) {
     Swal.fire("Guardado", `${LABELS[entity]} guardado correctamente`, "success");
-    loadTable(entity, entity + "Table");
-  } else {
-    Swal.fire("Error", saved.error || "No se pudo guardar", "error");
+    // recargar datos
+    const tableId = entity + "Table";
+    await loadTable(entity, tableId);
   }
 }
 
-/* ---------- Delete ---------- */
 async function deleteItem(entity, id) {
+  let htmlExtra = "";
+  let cascade = false;
+
+  if (entity === "brands") {
+    const styles = await apiGet("styles");
+    const linkedCount = styles.filter(s => String(s.brandId) === String(id)).length;
+    if (linkedCount > 0) {
+      htmlExtra = `
+        <p class="mb-2">Esta marca tiene <b>${linkedCount}</b> estilo(s) vinculados.</p>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="cascadeDelete">
+          <label class="form-check-label" for="cascadeDelete">Eliminar también los estilos vinculados</label>
+        </div>`;
+    }
+  }
+
   const r = await Swal.fire({
     title: "¿Eliminar?",
-    text: `Vas a eliminar este ${LABELS[entity].toLowerCase()}.`,
+    html: htmlExtra || "Esta acción no se puede deshacer.",
     icon: "warning",
     showCancelButton: true,
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
+    showLoaderOnConfirm: true,
+    allowOutsideClick: () => !Swal.isLoading(),
+    preConfirm: async () => {
+      cascade = document.getElementById("cascadeDelete")?.checked || false;
+      const res = await apiPost(entity, { id, cascade }, "delete");
+      if (!res.ok) throw new Error(res.error || "No se pudo eliminar");
+      return true;
+    }
   });
-  if (!r.isConfirmed) return;
 
-  const res = await apiDelete(entity, id);
-  if (res.ok) {
+  if (r.isConfirmed) {
     Swal.fire("Eliminado", `${LABELS[entity]} eliminado`, "success");
-    loadTable(entity, entity + "Table");
-  } else {
-    Swal.fire("Error", res.error || "No se pudo eliminar", "error");
+    renderTable(entity); // refresco actual
+    const tableId = entity + "Table";
+    await loadTable(entity, tableId); // garantizo refresco desde backend
   }
 }
 

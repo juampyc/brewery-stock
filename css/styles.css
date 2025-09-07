@@ -29,6 +29,16 @@ html[data-theme="dark"] {
   --sweet-text: #e5e7eb;
 }
 
+/* Tablas en dark coherentes con el tema */
+html[data-theme="dark"] .table {
+  --bs-table-bg: var(--card-bg);
+  --bs-table-color: var(--text-color);
+  --bs-table-border-color: var(--border-color);
+}
+html[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) {
+  --bs-table-accent-bg: rgba(129,140,248,.08);
+}
+
 /* =======================
    Base
    ======================= */
