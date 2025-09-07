@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Castelo | Etiquetas</title>
+  <title>Castelo | Inicio</title>
+
+  <!-- CSS de terceros -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-  <script>window.APP_VER = "20250910g";</script>
+  <!-- Versión para cache-busting de assets locales -->
+  <script>window.APP_VER = "20250907h";</script>
 
-  <!-- Librerías primero -->
+  <!-- JS de terceros -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
 
-  <!-- Tu loader al final -->
+  <!-- Loader que inyecta styles.css, theme-checker.js (si lo agregaste) y app.js con ?v= -->
   <script src="./js/app-loader.js?v=1" defer></script>
 </head>
 <body>
@@ -33,88 +36,75 @@
   </header>
 
   <main class="container py-3">
-    <h1 class="h4 mb-3">Etiquetas</h1>
+    <h1 class="h4 mb-3">Inicio</h1>
 
-    <div class="d-flex gap-2 align-items-center mb-2">
-      <button class="btn btn-sm btn-primary" onclick="handleAddClick(this,'labels')">Agregar</button>
-      <div class="ms-auto d-flex gap-2">
-        <input id="labelsSearch" class="form-control form-control-sm" placeholder="Buscar…" />
-        <select id="labelsPageSize" class="form-select form-select-sm" style="width:auto">
-          <option value="10" selected>10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
-        </select>
+    <!-- Resumen rápido -->
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body d-flex flex-column">
+            <div class="text-muted small">Latas vacías en stock</div>
+            <div class="display-6" id="emptyCansCount">0</div>
+            <div class="mt-auto">
+              <button id="btnAddEmptyCan" class="btn btn-primary btn-sm mt-2">
+                Agregar latas vacías
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Espacio para más tarjetas/resúmenes futuros -->
+      <div class="col-md-8">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted small mb-2">Atajos</div>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-outline-secondary btn-sm" href="labels.html">Ver etiquetas</a>
+              <a class="btn btn-outline-secondary btn-sm" href="movements.html">Ver movimientos</a>
+              <a class="btn btn-outline-secondary btn-sm" href="config.html">Configurar catálogos</a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Resumen de stock (Etiquetas) -->
-    <div class="row g-3 mb-3">
-      <div class="col-sm-4">
-        <div class="card"><div class="card-body">
-          <div class="text-muted small">Unidades totales</div>
-          <div class="h4 mb-0" id="lbl_total_units">0</div>
-        </div></div>
-      </div>
-      <div class="col-sm-4">
-        <div class="card"><div class="card-body">
-          <div class="text-muted small">Registros</div>
-          <div class="h4 mb-0" id="lbl_total_items">0</div>
-        </div></div>
-      </div>
-      <div class="col-sm-4">
-        <div class="card"><div class="card-body">
-          <div class="text-muted small">Última actualización</div>
-          <div class="h6 mb-0" id="lbl_last_mod">—</div>
-        </div></div>
-      </div>
-    </div>
-
-    <!-- Cards por estilo -->
-    <div class="card mb-3">
-      <div class="card-header">Stock por estilo</div>
-      <div class="card-body">
-        <div id="lbl_by_style" class="d-flex flex-wrap gap-2"></div>
-      </div>
-    </div>
-
-    <table id="labelsTable" class="table table-striped">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Marca</th>
-          <th>Estilo / Nombre</th>
-          <th>Cant.</th>
-          <th>Lote</th>
-          <th>Proveedor</th>
-          <th>Ingreso</th>
-          <th>Última mod.</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-
-    <nav aria-label="Labels pagination">
-      <ul id="labelsPager" class="pagination pagination-sm"></ul>
-    </nav>
+    <!-- (Opcional) Podés sumar una tabla de últimos movimientos acá si querés -->
   </main>
 
-  <!-- Modal reutilizable -->
-  <div class="modal fade" id="entityModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 id="entityModalTitle" class="modal-title">Editar</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+  <!-- Modal: Latas vacías -->
+  <div class="modal fade" id="emptyCansModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Registrar latas vacías</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Cantidad</label>
+          <input id="ec_qty" type="number" class="form-control" min="1" value="1">
         </div>
-        <div id="entityModalBody" class="modal-body"></div>
-        <div class="modal-footer">
-          <button id="entityModalSave" class="btn btn-primary">Guardar</button>
+
+        <div class="row g-2">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Lote</label>
+            <input id="ec_batch" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Fabricante</label>
+            <input id="ec_manu" class="form-control">
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <label class="form-label fw-semibold">Fecha y hora de ingreso</label>
+          <input id="ec_dt" type="datetime-local" class="form-control">
         </div>
       </div>
-    </div>
+      <div class="modal-footer">
+        <button id="ec_save" class="btn btn-primary">Guardar</button>
+      </div>
+    </div></div>
   </div>
-
-  <!-- (el loader ya inyecta tus archivos locales con cache-busting) -->
 </body>
 </html>
