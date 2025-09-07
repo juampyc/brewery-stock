@@ -61,13 +61,23 @@ function renderColorSquare(color) {
   if (!color) return "";
   return `<div class="color-box mx-auto" style="background:${color};"></div>`;
 }
+
 function renderDateLocal(s) {
   if (!s) return "";
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
-  if (m) {
-    const [_, Y, M, D, h, mm, ss] = m.map(Number);
-    return new Date(Y, M - 1, D, h, mm, ss).toLocaleString();
+  // Si viene ISO con zona (Z o ±hh:mm) -> dejar que JS convierta a local
+  if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(Z|[+\-]\d{2}:\d{2})$/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d) ? s : d.toLocaleString();
   }
+  // Si viene "yyyy-MM-dd HH:mm:ss" (sin zona) -> interpretarlo como hora local tal cual
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const Y = Number(m[1]), M = Number(m[2]), D = Number(m[3]);
+    const h = Number(m[4]), mm = Number(m[5]), ss = Number(m[6] || 0);
+    const d = new Date(Y, M - 1, D, h, mm, ss);
+    return d.toLocaleString();
+  }
+  // fallback
   const d = new Date(s);
   return isNaN(d) ? s : d.toLocaleString();
 }
