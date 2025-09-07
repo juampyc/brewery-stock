@@ -11,17 +11,21 @@ async function apiGet(entity, action = "getAll", extra = {}) {
   return res.json();
 }
 async function apiPost(entity, data, action) {
-  const url = action ? `${API_BASE}?entity=${entity}&action=${action}` : `${API_BASE}?entity=${entity}`;
+  const url = action
+    ? `${API_BASE}?entity=${entity}&action=${action}`
+    : `${API_BASE}?entity=${entity}`;
+
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // ⛔️ NO PONGAS headers: {"Content-Type":"application/json"}
+    // para evitar el preflight CORS (OPTIONS 405).
     body: JSON.stringify(data || {})
   });
   return res.json();
 }
 
 async function apiDelete(entity, id) {
-  return apiPost(entity, { id }, "delete"); // Apps Script no usa doDelete
+  return apiPost(entity, { id }, "delete");
 }
 
 /* ---------- Tema ---------- */
