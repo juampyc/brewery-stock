@@ -16,17 +16,17 @@
 }
 
 html[data-theme="dark"] {
-  --bg-color: #0b1220;
-  --text-color: #e5e7eb;
-  --card-bg: #111827;
-  --border-color: #1f2937;
-  --muted: #9ca3af;
+  --bg-color: #0e1117;   /* fondo general más oscuro */
+  --text-color: #f8fafc; /* texto bien claro */
+  --card-bg: #111827;    /* tarjetas/modales */
+  --border-color: #2b3445;
+  --muted: #cbd5e1;
 
-  --primary: #818cf8;
-  --primary-hover: #6366f1;
+  --primary: #8ea2ff;
+  --primary-hover: #6f86ff;
 
-  --sweet-bg: #161b22;
-  --sweet-text: #e5e7eb;
+  --sweet-bg: #141923;
+  --sweet-text: #f8fafc;
 }
 
 /* =====================================================
@@ -85,14 +85,17 @@ html[data-theme="light"] .table {
 
 /* Tablas coherentes en dark (evita fondo blanco) */
 html[data-theme="dark"] .table {
-  --bs-table-bg: var(--card-bg);
+  --bs-table-bg: #0f141b;                  /* más oscuro que card para contraste */
   --bs-table-color: var(--text-color);
   --bs-table-border-color: var(--border-color);
-  --bs-table-striped-bg: rgba(255,255,255,.04);
+  --bs-table-striped-bg: rgba(248,250,252,.06);
   --bs-table-striped-color: var(--text-color);
-  --bs-table-hover-bg: rgba(255,255,255,.07);
+  --bs-table-hover-bg: rgba(248,250,252,.10);
   --bs-table-hover-color: var(--text-color);
-  color: var(--text-color);
+  color: var(--text-color) !important;
+}
+html[data-theme="dark"] .table thead {
+  background: #0f141b;
 }
 html[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) {
   --bs-table-accent-bg: rgba(129,140,248,.08);

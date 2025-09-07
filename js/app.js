@@ -1,5 +1,5 @@
 /*
-  JS Control de Stock Castelo – Bootstrap modals nativos + SweetAlert solo confirmaciones/toasts
+  JS Control de Stock Castelo – Bootstrap modals nativos + SweetAlert: confirm/TOAST
 */
 const API_BASE = "https://script.google.com/macros/s/AKfycbwuCNU6Tf7E_l16zEiDDUdI0pqbGu_VYiGLkhzF66K3q0-ZSd6dX1d850TTTQVAxw0/exec";
 
@@ -18,6 +18,19 @@ async function apiDelete(entity, id, cascade=false) {
   return apiPost(entity, { id, cascade }, "delete");
 }
 
+/* ---------- SweetAlert TOAST ---------- */
+const Toast = Swal.mixin({
+  toast: true,
+  position: "top-end",
+  showConfirmButton: false,
+  timer: 1700,
+  timerProgressBar: true,
+  didOpen: (t) => {
+    t.addEventListener("mouseenter", Swal.stopTimer);
+    t.addEventListener("mouseleave", Swal.resumeTimer);
+  }
+});
+
 /* ---------- Tema ---------- */
 function initTheme() {
   const sw = document.getElementById("themeSwitch");
@@ -33,7 +46,7 @@ function initTheme() {
   }
 }
 
-/* ---------- Estado tablas para búsqueda/paginación ---------- */
+/* ---------- Estado tablas (búsqueda/paginación) ---------- */
 const tableState = {
   brands: { items: [], q: "", page: 1, pageSize: 10 },
   styles: { items: [], q: "", page: 1, pageSize: 10 },
@@ -141,8 +154,8 @@ function renderTable(entity, tableId = entity + "Table") {
 
     const tdA = document.createElement("td");
     tdA.innerHTML = `
-      <button class="btn btn-sm btn-warning me-1" onclick="openEntityModal('${entity}','${row.id}')">Editar</button>
-      <button class="btn btn-sm btn-danger" onclick="deleteItem('${entity}','${row.id}')">Eliminar</button>`;
+      <button class="btn btn-sm btn-warning me-1" onclick="handleEditClick(this,'${entity}','${row.id}')">Editar</button>
+      <button class="btn btn-sm btn-danger" onclick="handleDeleteClick(this,'${entity}','${row.id}')">Eliminar</button>`;
     tr.appendChild(tdA);
 
     tbody.appendChild(tr);
@@ -233,6 +246,7 @@ function modalBodyHtml(entity, data = {}, brands = []) {
       </div>`;
   }
 }
+
 async function openEntityModal(entity, id = null) {
   if (!entityModal) initEntityModal();
   const titleEl = document.getElementById('entityModalTitle');
@@ -247,12 +261,11 @@ async function openEntityModal(entity, id = null) {
   titleEl.textContent = (id ? "Editar " : "Agregar ") + LABELS[entity];
   bodyEl.innerHTML = modalBodyHtml(entity, data, brands);
 
-  // Evitar doble click
+  // Evitar doble click en Guardar
   saveBtn.disabled = false;
   saveBtn.onclick = async () => {
     try {
       saveBtn.disabled = true;
-
       let obj = { id };
       if (entity === "brands") {
         obj.name = document.getElementById("brandName").value.trim();
@@ -278,7 +291,7 @@ async function openEntityModal(entity, id = null) {
       const saved = await apiPost(entity, obj);
       if (!saved.ok) throw new Error(saved.error || "No se pudo guardar");
       entityModal.hide();
-      Swal.fire("Guardado", `${LABELS[entity]} guardado correctamente`, "success");
+      Toast.fire({ icon: "success", title: `${LABELS[entity]} guardado` });
       await loadTable(entity, entity + "Table");
     } catch (err) {
       console.error(err);
@@ -289,6 +302,30 @@ async function openEntityModal(entity, id = null) {
   };
 
   entityModal.show();
+}
+
+/* ---------- Botones con bloqueo inmediato ---------- */
+async function disableDuring(btn, fn) {
+  if (!btn) return fn();
+  const prevHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${btn.textContent}`;
+  try {
+    await fn();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = prevHtml;
+  }
+}
+
+function handleAddClick(btn, entity) {
+  disableDuring(btn, () => openEntityModal(entity));
+}
+function handleEditClick(btn, entity, id) {
+  disableDuring(btn, () => openEntityModal(entity, id));
+}
+function handleDeleteClick(btn, entity, id) {
+  disableDuring(btn, () => deleteItem(entity, id));
 }
 
 /* ---------- Delete con confirmación ---------- */
@@ -326,12 +363,12 @@ async function deleteItem(entity, id) {
   });
 
   if (r.isConfirmed) {
-    Swal.fire("Eliminado", `${LABELS[entity]} eliminado`, "success");
+    Toast.fire({ icon: "success", title: `${LABELS[entity]} eliminado` });
     await loadTable(entity, entity + "Table");
   }
 }
 
-/* ---------- Index: Latas vacías con modal Bootstrap ---------- */
+/* ---------- Index: Latas vacías (modal Bootstrap + toasts) ---------- */
 function initEmptyCans() {
   const btn = document.getElementById("btnAddEmptyCan");
   if (!btn) return;
@@ -341,7 +378,6 @@ function initEmptyCans() {
   const save = document.getElementById("ec_save");
 
   btn.addEventListener("click", () => {
-    // reset básicos
     document.getElementById("ec_qty").value = 1;
     document.getElementById("ec_batch").value = "";
     document.getElementById("ec_manu").value = "";
@@ -357,7 +393,7 @@ function initEmptyCans() {
       const manufacturer = document.getElementById("ec_manu").value.trim();
       for (let i = 0; i < qty; i++) await apiPost("emptycans", { batch, manufacturer });
       modal.hide();
-      Swal.fire("Guardado", "Latas registradas", "success");
+      Toast.fire({ icon: "success", title: "Latas registradas" });
       await loadEmptyCans();
     } catch (e) {
       console.error(e);
