@@ -16,6 +16,8 @@ async function apiPost(entity, data, action) {
 }
 async function apiDelete(entity, id) { return apiPost(entity, { id }, "delete"); }
 
+
+
 /* ---------- Toast ---------- */
 const Toast = Swal.mixin({
   toast: true, position: "top-end", showConfirmButton: false,
@@ -39,13 +41,19 @@ function initTheme(){
 
 /* ---------- Estado tablas ---------- */
 const tableState = {
-  brands:      { items: [], q:"", page:1, pageSize:10 },
-  styles:      { items: [], q:"", page:1, pageSize:10 },
-  fermenters:  { items: [], q:"", page:1, pageSize:10 },
-  containers:  { items: [], q:"", page:1, pageSize:10 },
-  labels:      { items: [], q:"", page:1, pageSize:10 }, // NUEVO
+  brands:{items:[], q:"", page:1, pageSize:10},
+  styles:{items:[], q:"", page:1, pageSize:10},
+  fermenters:{items:[], q:"", page:1, pageSize:10},
+  containers:{items:[], q:"", page:1, pageSize:10},
+  labels:{items:[], q:"", page:1, pageSize:10},
+  // NUEVO
+  movements:{items:[], q:"", page:1, pageSize:10, entity:"", from:"", to:""}
 };
-const LABELS = { brands:"Marca", styles:"Estilo", fermenters:"Fermentador", containers:"Envase", labels:"Etiqueta" };
+
+const LABELS = {
+  brands:"Marca", styles:"Estilo", fermenters:"Fermentador", containers:"Envase",
+  labels:"Etiqueta", movements:"Movimiento"  // <-- agregado
+};
 
 /* ---------- Helpers ---------- */
 function renderIdShort(id){ return id ? id.slice(-6) : ""; }
@@ -66,6 +74,43 @@ const todayInputValue = () => {
   const dd = String(d.getDate()).padStart(2,"0");
   return `${yyyy}-${mm}-${dd}`;
 };
+function applyMovementFilters(list){
+  const st = tableState.movements;
+  const entity = st.entity || "";
+  const from = st.from || "";
+  const to = st.to || "";
+  return list.filter(r=>{
+    if (entity && String(r.entity)!==entity) return false;
+    const d = String(r.dateTime || "").slice(0,10); // "YYYY-MM-DD"
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+}
+// --- CSV utils (export Movimientos) ---
+function csvEscape(v){
+  let s = v == null ? "" : String(v);
+  if (/[",\n]/.test(s)) s = `"${s.replace(/"/g,'""')}"`;
+  return s;
+}
+function downloadFile(name, content){
+  const blob = new Blob([content], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
+}
+function exportMovementsCSV(){
+  const st = tableState.movements;
+  let rows = st.items.filter(r => rowMatches(r, st.q||""));
+  rows = applyMovementFilters(rows);
+  const headers = ["id","entity","entityId","type","qty","dateTime","description","lastModified"];
+  const lines = [headers.join(",")].concat(
+    rows.map(r => headers.map(h => csvEscape(r[h])).join(","))
+  );
+  downloadFile(`movimientos_${Date.now()}.csv`, lines.join("\n"));
+}
+
 
 /* ---------- Search + pager ---------- */
 function setSearchHandlers(entity){
@@ -74,6 +119,36 @@ function setSearchHandlers(entity){
   if (qIn) qIn.addEventListener("input", ()=>{ tableState[entity].q=qIn.value; tableState[entity].page=1; renderTable(entity); });
   if (ps)  ps.addEventListener("change", ()=>{ tableState[entity].pageSize=Number(ps.value); tableState[entity].page=1; renderTable(entity); });
 }
+// --- Filtros / acciones para Movimientos ---
+function setMovementsHandlers(){
+  const sel = document.getElementById("mv_entity");
+  const from = document.getElementById("mv_from");
+  const to = document.getElementById("mv_to");
+  const btnClear = document.getElementById("mv_clear");
+  const btnCSV = document.getElementById("mv_export");
+
+  sel?.addEventListener("change", ()=>{
+    tableState.movements.entity = sel.value; tableState.movements.page=1; renderTable("movements");
+  });
+  from?.addEventListener("change", ()=>{
+    tableState.movements.from = from.value; tableState.movements.page=1; renderTable("movements");
+  });
+  to?.addEventListener("change", ()=>{
+    tableState.movements.to = to.value; tableState.movements.page=1; renderTable("movements");
+  });
+
+  btnClear?.addEventListener("click", ()=>{
+    if (sel) sel.value=""; if (from) from.value=""; if (to) to.value="";
+    tableState.movements.entity=""; tableState.movements.from=""; tableState.movements.to="";
+    renderTable("movements");
+  });
+
+  btnCSV?.addEventListener("click", exportMovementsCSV);
+
+  // búsqueda + page-size de movimientos
+  setSearchHandlers("movements");
+}
+
 function rowMatches(row,q){ if(!q) return true; return JSON.stringify(row).toLowerCase().includes(q.toLowerCase()); }
 function renderPager(entity, pages){
   const ul = document.getElementById(`${entity}Pager`); if(!ul) return;
@@ -91,7 +166,10 @@ function renderPager(entity, pages){
 }
 function renderTable(entity, tableId = entity + "Table"){
   const st = tableState[entity];
-  const filtered = st.items.filter(r => rowMatches(r, st.q.trim()));
+
+  let filtered = st.items.filter(r => rowMatches(r, st.q.trim()));
+  if (entity === "movements") filtered = applyMovementFilters(filtered);
+
   const pages = Math.max(1, Math.ceil(filtered.length / st.pageSize));
   if (st.page > pages) st.page = pages;
   const rows = filtered.slice((st.page-1)*st.pageSize, (st.page)*st.pageSize);
@@ -120,20 +198,38 @@ function renderTable(entity, tableId = entity + "Table"){
       pushTD(row.provider || "");
       pushTD(row.entryDate || "");
       pushTD(renderDateLocal(row.lastModified));
+    } else if (entity==="movements") {
+      pushTD(renderIdShort(row.id));
+      pushTD(renderDateLocal(row.dateTime));
+      pushTD(row.entity || "");
+      pushTD(row.type || "");
+      pushTD(row.qty ?? 0);
+      pushTD(row.description || "");
+      pushTD(renderDateLocal(row.lastModified));
     }
 
-    const tdA = document.createElement("td");
-    tdA.innerHTML = `
-      <button class="btn btn-sm btn-warning me-1" onclick="handleEditClick(this,'${entity}','${row.id}')">Editar</button>
-      <button class="btn btn-sm btn-danger" onclick="handleDeleteClick(this,'${entity}','${row.id}')">Eliminar</button>`;
-    tr.appendChild(tdA);
+    // Acciones sólo para entidades CRUD
+    if (entity!=="movements") {
+      const tdA = document.createElement("td");
+      tdA.innerHTML = `
+        <button class="btn btn-sm btn-warning me-1" onclick="handleEditClick(this,'${entity}','${row.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="handleDeleteClick(this,'${entity}','${row.id}')">Eliminar</button>`;
+      tr.appendChild(tdA);
+    }
 
     tbody.appendChild(tr);
   });
 
   renderPager(entity, pages);
 }
+
 async function loadTable(entity, tableId){ tableState[entity].items = await apiGet(entity); renderTable(entity, tableId); setSearchHandlers(entity); }
+
+async function loadMovements(){
+  tableState.movements.items = await apiGet("movements");
+  renderTable("movements");
+  setMovementsHandlers();
+}
 
 /* ---------- Modal reutilizable ---------- */
 let entityModal, entityModalEl, saveBtn;
@@ -391,15 +487,26 @@ async function loadEmptyCans(){
 
 /* ---------- Init ---------- */
 document.addEventListener("DOMContentLoaded", async ()=>{
-  initTheme(); initEntityModal(); initEmptyCans(); await loadEmptyCans();
+  initTheme(); 
+  initEntityModal(); 
+  initEmptyCans(); 
+  await loadEmptyCans();
 
+  // Si estoy en CONFIG (existen estas tablas), cargo config
   if (document.getElementById("brandsTable")) {
     await loadTable("brands","brandsTable");
     await loadTable("styles","stylesTable");
     await loadTable("fermenters","fermentersTable");
     await loadTable("containers","containersTable");
-    if (document.getElementById("labelsTable")) {
-      await loadTable("labels","labelsTable");
-    }
+  }
+
+  // Si estoy en ETIQUETAS (página propia), cargo labels
+  if (document.getElementById("labelsTable")) {
+    await loadTable("labels","labelsTable");
+  }
+
+  // Si estoy en MOVIMIENTOS, cargo movimientos
+  if (document.getElementById("movementsTable")) {
+    await loadMovements();
   }
 });
