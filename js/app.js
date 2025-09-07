@@ -87,6 +87,116 @@ function applyMovementFilters(list){
     return true;
   });
 }
+// --- CSV utils (ya usado por movimientos) ---
+function csvEscape(v){
+  let s = v == null ? "" : String(v);
+  if (/[",\n]/.test(s)) s = `"${s.replace(/"/g,'""')}"`;
+  return s;
+}
+function downloadFile(name, content){
+  const blob = new Blob([content], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
+}
+function exportMovementsCSV(){
+  const list = getFilteredMovements();
+  const headers = ["id","entity","entityId","type","qty","dateTime","description","lastModified"];
+  const lines = [headers.join(",")].concat(
+    list.map(r => headers.map(h => csvEscape(r[h])).join(","))
+  );
+  downloadFile(`movimientos_${Date.now()}.csv`, lines.join("\n"));
+}
+
+// --- Helpers de totales/desglose ---
+function getFilteredMovements(){
+  // Aplica búsqueda + filtros (entidad / fecha)
+  const st = tableState.movements;
+  let list = (st.items || []).filter(r => rowMatches(r, st.q || ""));
+  list = applyMovementFilters(list);
+  return list;
+}
+
+function computeTotals(list){
+  let inSum = 0, outSum = 0;
+  for (const r of list){
+    const t = String(r.type||"").toLowerCase();
+    const q = Number(r.qty||0);
+    if (t === "alta") inSum += q;
+    else if (t === "baja") outSum += q;
+  }
+  return { in: inSum, out: outSum, net: inSum - outSum };
+}
+
+function renderMovementsTotals(){
+  const list = getFilteredMovements();
+  const t = computeTotals(list);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set("mv_total_in",  t.in);
+  set("mv_total_out", t.out);
+  set("mv_total_net", t.net);
+
+  // ----- Desglose -----
+  const wrap = document.getElementById("mv_breakdown_wrap");
+  const tbody = document.querySelector("#mv_breakdown_table tbody");
+  const title = document.getElementById("mv_breakdown_title");
+  if (!wrap || !tbody || !title) return;
+
+  // Si no hay filtro de entidad => desglose por entidad
+  // Si entidad === 'labels' => desglose por estilo (tomado de description: "estilo:..", "custom:..")
+  const st = tableState.movements;
+  tbody.innerHTML = "";
+
+  if (list.length === 0){
+    wrap.classList.add("d-none");
+    return;
+  }
+
+  if (!st.entity){
+    // Por ENTIDAD
+    title.textContent = "Desglose por entidad";
+    const map = new Map(); // key -> {in,out}
+    for (const r of list){
+      const key = String(r.entity||"");
+      if (!map.has(key)) map.set(key, {in:0,out:0});
+      const obj = map.get(key);
+      const q = Number(r.qty||0);
+      const t = String(r.type||"").toLowerCase();
+      if (t==="alta") obj.in += q; else if (t==="baja") obj.out += q;
+    }
+    for (const [k,v] of map.entries()){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${k||"(sin entidad)"}</td><td>${v.in}</td><td>${v.out}</td><td>${v.in - v.out}</td>`;
+      tbody.appendChild(tr);
+    }
+    wrap.classList.remove("d-none");
+  } else if (st.entity === "labels") {
+    // Por ESTILO (o custom) cuando la entidad filtrada es labels
+    title.textContent = "Desglose por estilo";
+    const map = new Map(); // estilo/custom -> {in,out}
+    for (const r of list){
+      let key = "(labels)";
+      const desc = String(r.description||"");
+      if (desc.startsWith("estilo:")) key = desc.slice(7);
+      else if (desc.startsWith("custom:")) key = "(custom) " + desc.slice(7);
+      if (!map.has(key)) map.set(key, {in:0,out:0});
+      const obj = map.get(key);
+      const q = Number(r.qty||0);
+      const t = String(r.type||"").toLowerCase();
+      if (t==="alta") obj.in += q; else if (t==="baja") obj.out += q;
+    }
+    for (const [k,v] of map.entries()){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${k}</td><td>${v.in}</td><td>${v.out}</td><td>${v.in - v.out}</td>`;
+      tbody.appendChild(tr);
+    }
+    wrap.classList.remove("d-none");
+  } else {
+    // Para otras entidades no tiene sentido desglose por estilo => oculto
+    wrap.classList.add("d-none");
+  }
+}
 // --- CSV utils (export Movimientos) ---
 function csvEscape(v){
   let s = v == null ? "" : String(v);
