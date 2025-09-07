@@ -61,6 +61,17 @@
         <input id="mv_to" type="date" class="form-control form-control-sm">
     </div>
 
+    <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+    <!-- Entidad / Ítem / Fechas -->
+    ...
+    <!-- Agregá estos dos: -->
+    <input id="movementsSearch" class="form-control form-control-sm" placeholder="Buscar…" style="min-width:180px">
+    <select id="movementsPageSize" class="form-select form-select-sm" style="width:auto">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+    </select>
+    <!-- Botones -->
     <div class="ms-auto d-flex gap-2">
         <button id="mv_clear"  class="btn btn-outline-secondary btn-sm">Limpiar</button>
         <button id="mv_export" class="btn btn-outline-secondary btn-sm">CSV Listado</button>
@@ -69,40 +80,6 @@
     </div>
     </div>
 
-    <div class="row g-2 align-items-end">
-      <div class="col-12 col-md-2">
-        <label class="form-label fw-semibold">Desde</label>
-        <input id="mv_from" type="date" class="form-control">
-      </div>
-      <div class="col-12 col-md-2">
-        <label class="form-label fw-semibold">Hasta</label>
-        <input id="mv_to" type="date" class="form-control">
-      </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label fw-semibold">Entidad</label>
-        <select id="mv_entity" class="form-select">
-          <option value="">Todas</option>
-          <option value="emptycans">Latas vacías</option>
-          <option value="labels">Etiquetas</option>
-          <option value="brands">Marcas</option>
-          <option value="styles">Estilos</option>
-          <option value="fermenters">Fermentadores</option>
-          <option value="containers">Envases</option>
-        </select>
-      </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label fw-semibold">Buscar</label>
-        <input id="movementsSearch" class="form-control" placeholder="Texto libre…">
-      </div>
-      <div class="col-6 col-md-1">
-        <label class="form-label fw-semibold">Por pág.</label>
-        <select id="movementsPageSize" class="form-select">
-          <option>10</option><option>25</option><option>50</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-1 text-end">
-        <button id="mv_clear" class="btn btn-outline-secondary w-100">Limpiar</button>
-      </div>
     </div>
     <!-- Totales -->
     <div id="mv_totals" class="row g-2 my-3">
@@ -159,10 +136,6 @@
     </div>
     </div>
 
-    <div class="d-flex justify-content-end mt-2">
-      <button id="mv_export" class="btn btn-primary">Exportar CSV</button>
-    </div>
-
     <table id="movementsTable" class="table table-striped mt-3">
       <thead>
         <tr>
@@ -193,8 +166,5 @@
     </div></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="./js/theme-checker.js"></script>
 </body>
 </html>

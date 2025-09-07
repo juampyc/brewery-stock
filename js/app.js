@@ -773,10 +773,10 @@ async function loadEmptyCans(){
 /* =========================
    Init
    ========================= */
-document.addEventListener("DOMContentLoaded", async ()=>{
-  initTheme(); 
-  initEntityModal(); 
-  initEmptyCans(); 
+async function boot(){
+  initTheme();
+  initEntityModal();
+  initEmptyCans();
   await loadEmptyCans();
 
   // CONFIG
@@ -786,12 +786,19 @@ document.addEventListener("DOMContentLoaded", async ()=>{
     await loadTable("fermenters","fermentersTable");
     await loadTable("containers","containersTable");
   }
-  // ETIQUETAS (página propia)
+  // ETIQUETAS
   if (document.getElementById("labelsTable")) {
-    await loadTable("labels","labelsTable"); // esto también llama renderLabelsSummary(...)
+    await loadTable("labels","labelsTable"); // también arma el resumen
   }
-  // MOVIMIENTOS (kardex)
+  // MOVIMIENTOS
   if (document.getElementById("movementsTable")) {
-    await loadMovements(); // set handlers + primera carga
+    await loadMovements();
   }
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+
