@@ -7,7 +7,7 @@
     - Latas vacías: fecha+hora opcional en el alta
 */
 
-const API_BASE = "https://script.google.com/macros/s/AKfycbyliPwlZ7hDUB_7kNAvCXyVcM50oNI6qYyT0hhgOLy06q0mzxIQm8qVPyGQUtHv3Ytc/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbyojbmDe2uFNyfg_8uL5hl1_slCsM1RYX2sk2655UuYHaKDhkdK_fbNM-1lgYGp84zH/exec";
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
 /* =========================
@@ -777,14 +777,8 @@ function initEmptyCans(){
     document.getElementById("ec_qty").value = 1;
     document.getElementById("ec_batch").value = "";
     document.getElementById("ec_manu").value = "";
-
-    // Soporte nuevo (ec_dt) y viejo (ec_date)
-    const dtInput = document.getElementById("ec_dt") || document.getElementById("ec_date");
-    if (dtInput) {
-      if (dtInput.type === "datetime-local") dtInput.value = nowInputDateTime();
-      else dtInput.value = todayInputValue(); // compat date
-    }
-
+    const dt = document.getElementById("ec_dt");
+    if (dt) dt.value = nowInputDateTime();
     save.disabled = false;
     modal.show();
   });
@@ -795,15 +789,11 @@ function initEmptyCans(){
       const qty = Math.max(1, Number(document.getElementById("ec_qty").value || 1));
       const batch = document.getElementById("ec_batch").value.trim();
       const manufacturer = document.getElementById("ec_manu").value.trim();
+      const dt = document.getElementById("ec_dt")?.value || "";
+      const entryDate = (dt && dt.includes("T")) ? dt.split("T")[0] : todayInputValue();
+      const entryDateTime = dt ? (dt.replace("T"," ") + ":00") : null;
 
-      // Lee datetime-local (ec_dt) o date (ec_date) y normaliza
-      const dtVal = (document.getElementById("ec_dt")?.value) || (document.getElementById("ec_date")?.value);
-      let entryDate;
-      if (dtVal && dtVal.includes("T")) entryDate = fromDatetimeLocalValue(dtVal);
-      else if (dtVal) entryDate = `${dtVal} 00:00:00`;
-      else entryDate = fromDatetimeLocalValue(nowInputDateTime());
-
-      const res = await apiPost("emptycans", { qty, batch, manufacturer, entryDate });
+      const res = await apiPost("emptycans", { qty, batch, manufacturer, entryDate, entryDateTime });
       if (!res.ok) throw new Error(res.error || "No se pudo guardar");
 
       modal.hide();
@@ -814,6 +804,7 @@ function initEmptyCans(){
     } finally { save.disabled = false; }
   });
 }
+
 async function loadEmptyCans(){
   const el = document.getElementById("emptyCansCount"); if(!el) return;
   try{ const data = await apiGet("emptycans","emptycans_count"); el.textContent = data.count ?? 0; } catch(e){ console.error(e); }
@@ -843,7 +834,223 @@ async function boot(){
   if (document.getElementById("movementsTable")) {
     await loadMovements();
   }
+  // PRODUCCIÓN
+  if (document.getElementById("productionForm")) {
+    await initProductionPage();
+  }
+  // EMPAQUETADO
+  if (document.getElementById("packagingForm")) {
+    await initPackagingPage();
+  }
 }
+/* =========================
+   Producción (registrar lotes)
+   ========================= */
+async function initProductionPage(){
+  const brandSel = document.getElementById("prod_brand");
+  const styleSel = document.getElementById("prod_style");
+  const contSel  = document.getElementById("prod_container");
+  const labeledChk = document.getElementById("prod_labeled");
+  const labelSel = document.getElementById("prod_label");
+  const pastChk  = document.getElementById("prod_pasteurized");
+  const qtyIn    = document.getElementById("prod_qty");
+  const dtIn     = document.getElementById("prod_dt");
+  const btnSave  = document.getElementById("prod_save");
+
+  if (!brandSel || !styleSel || !contSel || !qtyIn || !btnSave) return;
+
+  // Cargar combos
+  const [brands, styles, containers, labels] = await Promise.all([
+    apiGet("brands"),
+    apiGet("styles"),
+    apiGet("containers"),
+    apiGet("labels"),
+  ]);
+
+  // Brands
+  brandSel.innerHTML = brands.map(b=> `<option value="${b.id}">${b.name}</option>`).join("");
+  // Containers (solo latas por defecto)
+  const lataFirst = (a,b)=> (String(a.type||"") === "lata" ? -1 : 1);
+  containers.sort(lataFirst);
+  contSel.innerHTML = containers.map(c=> `<option value="${c.id}">${c.name} (${c.type||"?"})</option>`).join("");
+
+  const rebuildStyles = ()=>{
+    const bid = brandSel.value;
+    const list = styles.filter(s=> String(s.brandId) === String(bid));
+    styleSel.innerHTML = list.map(s=> `<option value="${s.id}">${s.name}</option>`).join("");
+    rebuildLabels();
+  };
+  const rebuildLabels = ()=>{
+    const sid = styleSel.value;
+    // por defecto ofrezco etiquetas por styleId (no-custom) + opción "ninguna"
+    const opts = [`<option value="">— Sin etiqueta —</option>`]
+      .concat(labels
+        .filter(l => !l.isCustom && String(l.styleId) === String(sid))
+        .map(l => `<option value="${l.id}">${l.brandName || ""} ${l.styleName || ""}</option>`));
+    // separador + todas (por si quieren cambiar a otra)
+    opts.push(`<option value="" disabled>──────────</option>`);
+    opts.push(...labels.map(l=>{
+      const nom = l.isCustom ? `(custom) ${l.name}` : `${l.brandName||""} ${l.styleName||""}`;
+      return `<option value="${l.id}">${nom}</option>`;
+    }));
+    labelSel.innerHTML = opts.join("");
+  };
+
+  brandSel.addEventListener("change", rebuildStyles);
+  styleSel.addEventListener("change", rebuildLabels);
+
+  // etiquetada ON/OFF habilita el select label
+  const toggleLabel = ()=>{
+    labelSel.disabled = !labeledChk.checked;
+    if (!labeledChk.checked) labelSel.value = "";
+  };
+  labeledChk.addEventListener("change", toggleLabel);
+
+  // init valores
+  rebuildStyles();
+  toggleLabel();
+  if (dtIn) dtIn.value = nowInputDateTime();
+
+  btnSave.addEventListener("click", async ()=>{
+    try{
+      btnSave.disabled = true;
+      const styleId = styleSel.value;
+      const brand = brands.find(b => String(b.id) === String(brandSel.value));
+      const st    = styles.find(s => String(s.id) === String(styleId));
+      const containerId = contSel.value;
+      const container   = containers.find(c => String(c.id) === String(containerId));
+
+      const qty = Math.max(1, Number(qtyIn.value || 0));
+      if (!st) throw new Error("Elegí un estilo");
+      if (!container) throw new Error("Elegí un envase");
+      const labeled = !!labeledChk.checked;
+      const labelId = labeled ? labelSel.value : "";
+      if (labeled && !labelId) throw new Error("Seleccioná una etiqueta o desmarcá 'Etiquetada'");
+
+      const payload = {
+        styleId, brandId: st.brandId,
+        containerId,
+        labeled, labelId,
+        pasteurized: !!pastChk.checked,
+        qty,
+        dateTime: dtIn ? (dtIn.value ? (dtIn.value.replace("T"," ") + ":00") : null) : null
+      };
+
+      const res = await apiPost("production", payload, "register_production");
+      if (!res.ok) throw new Error(res.error || "No se pudo registrar la producción");
+
+      Swal.fire({icon:"success", title:"Producción registrada", timer:1400, showConfirmButton:false});
+      // reset suaves
+      qtyIn.value = 24;
+      if (dtIn) dtIn.value = nowInputDateTime();
+    } catch(e){
+      console.error(e);
+      Swal.fire("Error", e.message || "No se pudo registrar", "error");
+    } finally { btnSave.disabled = false; }
+  });
+}
+
+/* =========================
+   Empaquetado (cajas 12 o 24)
+   ========================= */
+async function initPackagingPage(){
+  const brandSel = document.getElementById("pack_brand");
+  const styleSel = document.getElementById("pack_style");
+  const stateSel = document.getElementById("pack_state");
+  const labelSel = document.getElementById("pack_label");
+  const typeSel  = document.getElementById("pack_type");
+  const boxesIn  = document.getElementById("pack_boxes");
+  const dtIn     = document.getElementById("pack_dt");
+  const btnPack  = document.getElementById("pack_do");
+  const stockWrap= document.getElementById("pack_stock_wrap");
+  const stockTBody = document.querySelector("#pack_stock_table tbody");
+
+  if (!brandSel || !styleSel || !typeSel || !boxesIn || !btnPack) return;
+
+  const [brands, styles, labels] = await Promise.all([
+    apiGet("brands"), apiGet("styles"), apiGet("labels")
+  ]);
+
+  // Cargar combos
+  brandSel.innerHTML = brands.map(b=> `<option value="${b.id}">${b.name}</option>`).join("");
+  const rebuildStyles = ()=>{
+    const bid = brandSel.value;
+    const list = styles.filter(s=> String(s.brandId) === String(bid));
+    styleSel.innerHTML = list.map(s=> `<option value="${s.id}">${s.name}</option>`).join("");
+    rebuildLabels();
+    refreshStock();
+  };
+  const rebuildLabels = ()=>{
+    const sid = styleSel.value;
+    const opts = [`<option value="">(Cualquier etiqueta)</option>`]
+      .concat(labels
+        .filter(l => !l.isCustom && String(l.styleId) === String(sid))
+        .map(l => `<option value="${l.id}">${l.brandName||""} ${l.styleName||""}</option>`));
+    // custom + todas
+    opts.push(`<option value="" disabled>──────────</option>`);
+    opts.push(...labels.map(l=>{
+      const nom = l.isCustom ? `(custom) ${l.name}` : `${l.brandName||""} ${l.styleName||""}`;
+      return `<option value="${l.id}">${nom}</option>`;
+    }));
+    labelSel.innerHTML = opts.join("");
+  };
+  brandSel.addEventListener("change", rebuildStyles);
+  styleSel.addEventListener("change", ()=>{ rebuildLabels(); refreshStock(); });
+  labelSel.addEventListener("change", refreshStock);
+  stateSel?.addEventListener("change", refreshStock);
+
+  if (dtIn) dtIn.value = nowInputDateTime();
+  rebuildStyles();
+
+  async function refreshStock(){
+    if (!stockWrap || !stockTBody) return;
+    stockTBody.innerHTML = `<tr><td colspan="4" class="text-muted">Cargando…</td></tr>`;
+    try{
+      const data = await apiGet("cans","cans_stock");
+      const sid = styleSel.value;
+      const lid = labelSel.value;
+      const stt = stateSel?.value || "";
+      const rows = (Array.isArray(data)?data:[])
+        .filter(r => String(r.styleId) === String(sid))
+        .filter(r => !lid || String(r.labelId) === String(lid))
+        .filter(r => !stt || String(r.state) === String(stt));
+      stockTBody.innerHTML = "";
+      if (rows.length === 0) {
+        stockTBody.innerHTML = `<tr><td colspan="4" class="text-muted">Sin stock</td></tr>`;
+      } else {
+        rows.forEach(r=>{
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${r.state}</td><td>${r.labelName||"—"}</td><td class="text-end">${r.qty}</td><td>${r.lastModified||""}</td>`;
+          stockTBody.appendChild(tr);
+        });
+      }
+      stockWrap.classList.remove("d-none");
+    } catch{ stockWrap.classList.add("d-none"); }
+  }
+
+  btnPack.addEventListener("click", async ()=>{
+    try{
+      btnPack.disabled = true;
+      const styleId = styleSel.value;
+      if (!styleId) throw new Error("Elegí un estilo");
+      const type = typeSel.value; // box12 | box24
+      const boxes = Math.max(1, Number(boxesIn.value||0));
+      const labelId = labelSel.value || "";
+      const state = stateSel?.value || ""; // "" = cualquiera
+      const dateTime = dtIn ? (dtIn.value ? (dtIn.value.replace("T"," ") + ":00") : null) : null;
+
+      const res = await apiPost("packages", { styleId, labelId, state, type, boxes, dateTime }, "package");
+      if (!res.ok) throw new Error(res.error || "No se pudo empaquetar");
+
+      Swal.fire({icon:"success", title:"Empaquetado registrado", timer:1400, showConfirmButton:false});
+      refreshStock();
+    } catch(e){
+      console.error(e);
+      Swal.fire("Error", e.message || "No se pudo empaquetar", "error");
+    } finally { btnPack.disabled = false; }
+  });
+}
+
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
