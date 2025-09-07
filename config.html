@@ -30,6 +30,7 @@
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#stylesTab">Estilos</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fermentersTab">Fermentadores</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#containersTab">Envases</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#labelsTab">Etiquetas</button></li>
     </ul>
 
     <div class="tab-content">
@@ -123,6 +124,31 @@
         <nav aria-label="Containers pagination">
           <ul id="containersPager" class="pagination pagination-sm"></ul>
         </nav>
+      </div>
+      <!-- Etiquetas -->
+      <div class="tab-pane fade" id="labelsTab">
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <h5 class="m-0">Etiquetas</h5>
+          <button class="btn btn-sm btn-primary ms-2" onclick="handleAddClick(this,'labels')">Agregar</button>
+          <div class="ms-auto d-flex gap-2">
+            <input id="labelsSearch" class="form-control form-control-sm" placeholder="Buscar…">
+            <select id="labelsPageSize" class="form-select form-select-sm" style="width:auto">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+        </div>
+        <table id="labelsTable" class="table table-striped">
+          <thead>
+            <tr>
+              <th>ID</th><th>Marca</th><th>Estilo / Nombre</th><th>Cant.</th>
+              <th>Lote</th><th>Proveedor</th><th>Ingreso</th><th>Última mod.</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <nav aria-label="Labels pagination"><ul id="labelsPager" class="pagination pagination-sm"></ul></nav>
       </div>
     </div>
   </main>
