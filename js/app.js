@@ -3,10 +3,11 @@
   ► Añadidos:
     - Movimientos (Kardex) con filtro por ENTIDAD + ÍTEM, totales, desglose, diario con saldo y CSV
     - Export ZIP con TODOS los CSV (brands, styles, fermenters, containers, emptycans, labels, movements)
-    - Resumen de stock en labels (unidades, registros, última actualización y top por marca)
+    - Etiquetas: fecha+hora de ingreso, tabla con fecha legible, y resumen por ESTILO (mini-cards)
+    - Latas vacías: fecha+hora opcional en el alta
 */
 
-const API_BASE = "https://script.google.com/macros/s/AKfycbyC5R2_esM9BwXZLRmF2gcqrLU163eBh_rK-8GOb_gzuJkKj4E8gR0g8BhsgsFf-wqi/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbyliPwlZ7hDUB_7kNAvCXyVcM50oNI6qYyT0hhgOLy06q0mzxIQm8qVPyGQUtHv3Ytc/exec";
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
 /* =========================
@@ -69,7 +70,7 @@ const LABELS = {
 };
 
 /* =========================
-   Helpers UI
+   Helpers UI / Fechas
    ========================= */
 function renderIdShort(id){ return id ? id.slice(-6) : ""; }
 function renderColorSquare(color){ return color ? `<div class="color-box mx-auto" style="background:${color};"></div>` : ""; }
@@ -78,7 +79,7 @@ function renderDateLocal(s){
   if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(Z|[+\-]\d{2}:\d{2})$/.test(s)) {
     const d = new Date(s); return isNaN(d) ? s : d.toLocaleString();
   }
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (m){ const d = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0)); return d.toLocaleString(); }
   const d = new Date(s); return isNaN(d) ? s : d.toLocaleString();
 }
@@ -89,6 +90,39 @@ const todayInputValue = () => {
   const dd = String(d.getDate()).padStart(2,"0");
   return `${yyyy}-${mm}-${dd}`;
 };
+// "YYYY-MM-DDTHH:mm" para <input type="datetime-local">
+const nowInputDateTime = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mi = String(d.getMinutes()).padStart(2,"0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+};
+// Convierte guardado → valor válido para input datetime-local
+function toDatetimeLocalValue(s){
+  if (!s) return nowInputDateTime();
+  const iso = new Date(s);
+  if (!isNaN(iso)) {
+    const yyyy = iso.getFullYear();
+    const mm = String(iso.getMonth()+1).padStart(2,"0");
+    const dd = String(iso.getDate()).padStart(2,"0");
+    const hh = String(iso.getHours()).padStart(2,"0");
+    const mi = String(iso.getMinutes()).padStart(2,"0");
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  }
+  const m = String(s).trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}T${m[2]}:${m[3]}`;
+  const d = String(s).trim().match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (d) return `${d[1]}T00:00`;
+  return nowInputDateTime();
+}
+// Valor del input "YYYY-MM-DDTHH:mm" → "YYYY-MM-DD HH:mm:ss"
+function fromDatetimeLocalValue(v){
+  if (!v) return null;
+  return v.replace("T"," ") + ":00";
+}
 
 /* =========================
    CSV utils + ZIP
@@ -307,7 +341,6 @@ function renderPager(entity, pages){
    Movimientos: cargar ÍTEMS según ENTIDAD
    ========================= */
 async function loadItemsForEntity(entity){
-  // Devuelve [{id, label}]
   if (!entity) return [];
   if (entity === "labels"){
     const rows = await apiGet("labels");
@@ -324,7 +357,6 @@ async function loadItemsForEntity(entity){
       label: `Lote ${r.batch || "s/d"} • ${r.entryDate || ""} • ${renderIdShort(r.id)}`
     }));
   }
-  // Extensible a futuro (containers, fermenters, etc.)
   const rows = await apiGet(entity);
   return rows.map(r => ({ id: r.id, label: r.name || renderIdShort(r.id) }));
 }
@@ -342,7 +374,6 @@ function setMovementsHandlers(){
   selEntity?.addEventListener("change", async ()=>{
     tableState.movements.entity = selEntity.value;
     tableState.movements.itemId = "";
-    // repoblar items
     if (selItem){
       selItem.innerHTML = `<option value="">Todos los ítems</option>`;
       if (selEntity.value){
@@ -378,7 +409,6 @@ function setMovementsHandlers(){
   btnZIP ?.addEventListener("click", exportAllCSVsZip);
   btnDailyCSV?.addEventListener("click", exportMovementsDailyCSV);
 
-  // búsqueda + page-size
   setSearchHandlers("movements");
 }
 
@@ -417,7 +447,7 @@ function renderTable(entity, tableId = entity + "Table"){
       pushTD(row.qty ?? 0);
       pushTD(row.batch || "");
       pushTD(row.provider || "");
-      pushTD(row.entryDate || "");
+      pushTD(renderDateLocal(row.entryDate));          // ← fecha linda
       pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="movements") {
       pushTD(renderIdShort(row.id));
@@ -447,7 +477,7 @@ function renderTable(entity, tableId = entity + "Table"){
     renderMovementsDaily();
   }
   if (entity === "labels") {
-    renderLabelsSummary(tableState.labels.items); // resumen arriba de labels
+    renderLabelsSummary(tableState.labels.items);
   }
 }
 
@@ -463,13 +493,11 @@ async function loadMovements(){
 }
 
 /* =========================
-   Resumen de stock – Labels
+   Resumen de stock – Labels (por ESTILO)
    ========================= */
 function renderLabelsSummary(list){
-  // Totales
   const totalUnits = list.reduce((a,x)=>a + (Number(x.qty)||0), 0);
   const totalItems = list.length;
-  // Última modificación
   const last = list.reduce((mx,x)=>{
     const d = new Date(x.lastModified || 0);
     return isNaN(d) ? mx : Math.max(mx, d.getTime());
@@ -481,22 +509,27 @@ function renderLabelsSummary(list){
   set("lbl_total_items", totalItems);
   const lm = document.getElementById("lbl_last_mod"); if (lm) lm.textContent = lastStr;
 
-  // Top por marca
-  const byBrand = new Map();
+  // Agrupar por estilo / nombre (custom)
+  const byStyle = new Map();
   for (const r of list){
-    const k = String(r.brandName || "(s/marca)");
-    const q = Number(r.qty || 0);
-    byBrand.set(k, (byBrand.get(k) || 0) + q);
+    const key = r.isCustom ? `(custom) ${r.name || renderIdShort(r.id)}` : (r.styleName || "(sin estilo)");
+    byStyle.set(key, (byStyle.get(key) || 0) + (Number(r.qty)||0));
   }
-  const top = Array.from(byBrand.entries()).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const tb = document.getElementById("lbl_by_brand_tbody");
-  if (tb){
-    tb.innerHTML = "";
-    for (const [name, qty] of top){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${name}</td><td class="text-end">${qty}</td>`;
-      tb.appendChild(tr);
-    }
+  const arr = Array.from(byStyle.entries()).sort((a,b)=>b[1]-a[1]);
+
+  const wrap = document.getElementById("lbl_by_style");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  for (const [name, qty] of arr){
+    const div = document.createElement("div");
+    div.className = "card shadow-sm";
+    div.style.minWidth = "180px";
+    div.innerHTML = `
+      <div class="card-body py-2 px-3">
+        <div class="small text-muted mb-1">${name}</div>
+        <div class="h6 m-0 text-end">${qty}</div>
+      </div>`;
+    wrap.appendChild(div);
   }
 }
 
@@ -573,8 +606,8 @@ function modalBodyHtml(entity, data={}, brands=[], styles=[]){
           <input id="labelQty" type="number" class="form-control" value="${data.qty||1}" min="1">
         </div>
         <div class="col-sm-6">
-          <label class="form-label fw-semibold">Fecha de ingreso</label>
-          <input id="labelEntryDate" type="date" class="form-control" value="${data.entryDate || todayInputValue()}">
+          <label class="form-label fw-semibold">Fecha y hora de ingreso</label>
+          <input id="labelEntryDateTime" type="datetime-local" class="form-control" value="${toDatetimeLocalValue(data.entryDate)}">
         </div>
       </div>
 
@@ -679,7 +712,10 @@ async function openEntityModal(entity, id=null){
           obj.name = "";
         }
         obj.qty = Math.max(1, Number(document.getElementById("labelQty").value || 1));
-        obj.entryDate = document.getElementById("labelEntryDate").value || todayInputValue();
+
+        const dt = document.getElementById("labelEntryDateTime").value;
+        obj.entryDate = fromDatetimeLocalValue(dt) || fromDatetimeLocalValue(nowInputDateTime());
+
         obj.batch = document.getElementById("labelBatch").value.trim();
         obj.provider = document.getElementById("labelProvider").value.trim();
       }
@@ -727,7 +763,7 @@ async function deleteItem(entity, id){
 }
 
 /* =========================
-   Index: Latas vacías
+   Index: Latas vacías (con fecha/hora opcional)
    ========================= */
 function initEmptyCans(){
   const btn = document.getElementById("btnAddEmptyCan");
@@ -741,7 +777,14 @@ function initEmptyCans(){
     document.getElementById("ec_qty").value = 1;
     document.getElementById("ec_batch").value = "";
     document.getElementById("ec_manu").value = "";
-    document.getElementById("ec_date").value = todayInputValue();
+
+    // Soporte nuevo (ec_dt) y viejo (ec_date)
+    const dtInput = document.getElementById("ec_dt") || document.getElementById("ec_date");
+    if (dtInput) {
+      if (dtInput.type === "datetime-local") dtInput.value = nowInputDateTime();
+      else dtInput.value = todayInputValue(); // compat date
+    }
+
     save.disabled = false;
     modal.show();
   });
@@ -752,7 +795,13 @@ function initEmptyCans(){
       const qty = Math.max(1, Number(document.getElementById("ec_qty").value || 1));
       const batch = document.getElementById("ec_batch").value.trim();
       const manufacturer = document.getElementById("ec_manu").value.trim();
-      const entryDate = document.getElementById("ec_date").value || todayInputValue();
+
+      // Lee datetime-local (ec_dt) o date (ec_date) y normaliza
+      const dtVal = (document.getElementById("ec_dt")?.value) || (document.getElementById("ec_date")?.value);
+      let entryDate;
+      if (dtVal && dtVal.includes("T")) entryDate = fromDatetimeLocalValue(dtVal);
+      else if (dtVal) entryDate = `${dtVal} 00:00:00`;
+      else entryDate = fromDatetimeLocalValue(nowInputDateTime());
 
       const res = await apiPost("emptycans", { qty, batch, manufacturer, entryDate });
       if (!res.ok) throw new Error(res.error || "No se pudo guardar");
@@ -801,4 +850,3 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
-
