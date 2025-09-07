@@ -1,6 +1,6 @@
-/* =======================
+/* =====================================================
    Variables por tema
-   ======================= */
+   ===================================================== */
 :root {
   --bg-color: #ffffff;
   --text-color: #1f2937;
@@ -8,7 +8,7 @@
   --border-color: #e5e7eb;
   --muted: #6b7280;
 
-  --primary: #4f46e5;   /* botones / acentos */
+  --primary: #4f46e5;
   --primary-hover: #4338ca;
 
   --sweet-bg: #ffffff;
@@ -29,19 +29,9 @@ html[data-theme="dark"] {
   --sweet-text: #e5e7eb;
 }
 
-/* Tablas en dark coherentes con el tema */
-html[data-theme="dark"] .table {
-  --bs-table-bg: var(--card-bg);
-  --bs-table-color: var(--text-color);
-  --bs-table-border-color: var(--border-color);
-}
-html[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) {
-  --bs-table-accent-bg: rgba(129,140,248,.08);
-}
-
-/* =======================
+/* =====================================================
    Base
-   ======================= */
+   ===================================================== */
 html, body {
   height: 100%;
   background: var(--bg-color);
@@ -50,44 +40,25 @@ html, body {
   transition: background .25s ease, color .25s ease;
 }
 
+/* asegura que bg-body use variables del tema */
+.bg-body {
+  background-color: var(--bg-color) !important;
+  color: var(--text-color) !important;
+}
+
 a { color: var(--primary); }
 a:hover { color: var(--primary-hover); }
 
-/* =======================
-   Layout / Sidebar
-   ======================= */
-.app-sidebar {
-  width: 260px;
-  min-height: 100vh;
-  background: var(--card-bg);
-  border-right: 1px solid var(--border-color);
-  transition: width .2s ease;
-}
-.app-sidebar.collapsed { width: 64px; }
-.app-sidebar .nav-link {
-  color: var(--text-color);
-  display: flex; align-items: center; gap: .5rem;
-  border-radius: .5rem;
-}
-.app-sidebar .nav-link:hover {
-  background: rgba(99,102,241,.08);
-}
-.app-sidebar .nav-link.active {
-  background: rgba(99,102,241,.15);
-  color: var(--primary);
-}
-
-.app-main { flex: 1; }
-
-/* =======================
+/* =====================================================
    Cards / Tables / Forms
-   ======================= */
+   ===================================================== */
 .card {
   background: var(--card-bg);
   color: var(--text-color);
   border-color: var(--border-color);
 }
 
+/* Tabla base (aplica a ambos temas) */
 .table {
   color: var(--text-color);
   border-color: var(--border-color);
@@ -105,6 +76,29 @@ a:hover { color: var(--primary-hover); }
   --bs-table-accent-bg: rgba(99,102,241,.04);
 }
 
+/* Variables de tabla para light (opcional pero consistente) */
+html[data-theme="light"] .table {
+  --bs-table-bg: var(--card-bg);
+  --bs-table-color: var(--text-color);
+  --bs-table-border-color: var(--border-color);
+}
+
+/* Tablas coherentes en dark (evita fondo blanco) */
+html[data-theme="dark"] .table {
+  --bs-table-bg: var(--card-bg);
+  --bs-table-color: var(--text-color);
+  --bs-table-border-color: var(--border-color);
+  --bs-table-striped-bg: rgba(255,255,255,.04);
+  --bs-table-striped-color: var(--text-color);
+  --bs-table-hover-bg: rgba(255,255,255,.07);
+  --bs-table-hover-color: var(--text-color);
+  color: var(--text-color);
+}
+html[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) {
+  --bs-table-accent-bg: rgba(129,140,248,.08);
+}
+
+/* Inputs / selects (ambos temas via variables) */
 .form-control, .form-select, .form-control-color {
   background: var(--bg-color);
   color: var(--text-color);
@@ -115,9 +109,9 @@ a:hover { color: var(--primary-hover); }
   box-shadow: 0 0 0 .25rem rgba(99,102,241,.25);
 }
 
-/* =======================
+/* =====================================================
    Botones
-   ======================= */
+   ===================================================== */
 .btn-primary {
   background: var(--primary);
   border-color: var(--primary);
@@ -139,18 +133,21 @@ a:hover { color: var(--primary-hover); }
   border-color: #ef4444;
 }
 
-/* =======================
-   Utilidades
-   ======================= */
-.color-box {
-  width: 20px; height: 20px; border-radius: 4px;
-  border: 1px solid var(--border-color);
-  display: inline-block;
+/* =====================================================
+   Modal Bootstrap (nativo)
+   ===================================================== */
+.modal-content {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+.modal-header, .modal-footer {
+  border-color: var(--border-color);
 }
 
-/* =======================
+/* =====================================================
    SweetAlert2 (tema)
-   ======================= */
+   ===================================================== */
 .swal2-popup {
   background: var(--sweet-bg) !important;
   color: var(--sweet-text) !important;
@@ -168,31 +165,17 @@ a:hover { color: var(--primary-hover); }
 .swal2-confirm, .swal2-cancel {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
+  color: #fff !important;
 }
 .swal2-confirm:hover, .swal2-cancel:hover {
   background: var(--primary-hover) !important;
 }
 
-/* =======================
-   Alerts
-   ======================= */
-.alert-info {
-  color: var(--text-color);
-  background: rgba(99,102,241,.08);
-  border-color: var(--border-color);
-}
-
-/* =======================
-   Icon tweaks
-   ======================= */
-.material-icons {
-  vertical-align: middle;
-}
-
-/* labels más legibles en modales */
+/* =====================================================
+   Utilidades
+   ===================================================== */
 .form-label.fw-semibold { font-weight: 600; }
 
-/* color picker centrado y grande */
 .form-control-color {
   padding: 0 !important;
   width: 3.2rem !important;
@@ -200,22 +183,18 @@ a:hover { color: var(--primary-hover); }
   border-radius: .5rem;
 }
 
-/* Sidebar móvil: oculta y desliza */
-@media (max-width: 768px) {
-  .app-sidebar {
-    position: fixed;
-    left: 0; top: 0; bottom: 0;
-    z-index: 1040;
-    transform: translateX(-100%);
-    transition: transform .2s ease;
-    width: 240px;
-  }
-  .app-sidebar.open { transform: translateX(0); }
-  .app-main { margin-left: 0 !important; }
+.color-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  display: inline-block;
 }
 
-/* Color squares en tablas */
-.color-box {
-  width: 20px; height: 20px; border-radius: 4px;
-  border: 1px solid var(--border-color);
+.alert-info {
+  color: var(--text-color);
+  background: rgba(99,102,241,.08);
+  border-color: var(--border-color);
 }
+
+.material-icons { vertical-align: middle; }
