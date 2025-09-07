@@ -2,7 +2,7 @@
   JS Control de Stock Castelo – TopNav, dark persistente,
   CRUD con Apps Script, estilos con select de marcas.
 */
-const API_BASE = "https://script.google.com/macros/s/AKfycbwuCNU6Tf7E_l16zEiDDUdI0pqbGu_VYiGLkhzF66K3q0-ZSd6dX1d850TTTQVAxw0/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbxqI4TZxWb6ZQ7bfW8k5v5zEpqe57o66zoTfxNEkcyZ74McJkrwpjeSEXK8NJSxhgRo/exec";
 
 /* ---------- API ---------- */
 async function apiGet(entity, action = "getAll", extra = {}) {
@@ -12,9 +12,14 @@ async function apiGet(entity, action = "getAll", extra = {}) {
 }
 async function apiPost(entity, data, action) {
   const url = action ? `${API_BASE}?entity=${entity}&action=${action}` : `${API_BASE}?entity=${entity}`;
-  const res = await fetch(url, { method: "POST", body: JSON.stringify(data || {}) });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data || {})
+  });
   return res.json();
 }
+
 async function apiDelete(entity, id) {
   return apiPost(entity, { id }, "delete"); // Apps Script no usa doDelete
 }
