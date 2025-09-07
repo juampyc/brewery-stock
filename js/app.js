@@ -1,6 +1,6 @@
 // app.js (completo) – Control de Stock + Producción
 // API base (Apps Script)
-const API_BASE = "https://script.google.com/macros/s/AKfycbyC5R2_esM9BwXZLRmF2gcqrLU163eBh_rK-8GOb_gzuJkKj4E8gR0g8BhsgsFf-wqi/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbyojbmDe2uFNyfg_8uL5hl1_slCsM1RYX2sk2655UuYHaKDhkdK_fbNM-1lgYGp84zH/exec";
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
 /* =========================
