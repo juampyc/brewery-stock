@@ -9,98 +9,80 @@
   <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
-  <div class="d-flex">
-    <!-- Sidebar -->
-    <aside id="sidebar" class="app-sidebar">
-      <div class="d-flex align-items-center justify-content-between px-3 py-2">
-        <strong>Castelo</strong>
-        <button class="btn btn-sm btn-outline-secondary" id="btnToggleSidebar">
-          <span class="material-icons">menu_open</span>
-        </button>
+  <!-- Top nav -->
+  <header class="border-bottom bg-body px-3 py-2 d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <span class="fw-bold">Castelo</span>
+      <a class="btn btn-link p-0" href="index.html">Inicio</a>
+      <a class="btn btn-link p-0" href="config.html">Configuración</a>
+    </div>
+    <div class="form-check form-switch m-0">
+      <input class="form-check-input" type="checkbox" id="themeSwitch">
+      <label class="form-check-label" for="themeSwitch">Dark</label>
+    </div>
+  </header>
+
+  <main class="container py-3">
+    <h1 class="h4 mb-3">Configuración</h1>
+
+    <ul class="nav nav-tabs mb-3" id="configTabs">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#brandsTab">Marcas</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#stylesTab">Estilos</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fermentersTab">Fermentadores</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#containersTab">Envases</button></li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- Marcas -->
+      <div class="tab-pane fade show active" id="brandsTab">
+        <div class="d-flex justify-content-between mb-2">
+          <h5>Marcas</h5>
+          <button class="btn btn-sm btn-primary" onclick="openModal('brands')">Agregar</button>
+        </div>
+        <table id="brandsTable" class="table table-striped">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Color</th><th>Última modificación</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
-      <ul class="nav flex-column px-2">
-        <li class="nav-item">
-          <a class="nav-link" href="index.html"><span class="material-icons">home</span> Inicio</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link active" href="config.html"><span class="material-icons">settings</span> Configuración</a>
-        </li>
-      </ul>
-    </aside>
 
-    <!-- Main -->
-    <main class="app-main p-3 flex-grow-1">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4">Configuración</h1>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="themeSwitch">
-          <label class="form-check-label" for="themeSwitch">Dark</label>
+      <!-- Estilos -->
+      <div class="tab-pane fade" id="stylesTab">
+        <div class="d-flex justify-content-between mb-2">
+          <h5>Estilos</h5>
+          <button class="btn btn-sm btn-primary" onclick="openModal('styles')">Agregar</button>
         </div>
+        <table id="stylesTable" class="table table-striped">
+          <thead><tr><th>ID</th><th>Marca</th><th>Nombre</th><th>Color</th><th>Mostrar siempre</th><th>Última modificación</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
 
-      <ul class="nav nav-tabs mb-3" id="configTabs">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#brandsTab">Marcas</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#stylesTab">Estilos</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fermentersTab">Fermentadores</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#containersTab">Envases</button></li>
-      </ul>
-
-      <div class="tab-content">
-        <!-- Marcas -->
-        <div class="tab-pane fade show active" id="brandsTab">
-          <div class="d-flex justify-content-between mb-2">
-            <h5>Marcas</h5>
-            <button class="btn btn-sm btn-primary" onclick="openModal('brands')">Agregar</button>
-          </div>
-          <table id="brandsTable" class="table table-striped">
-            <thead><tr><th>ID</th><th>Nombre</th><th>Color</th><th>Última Modificación</th><th>Acciones</th></tr></thead>
-            <tbody></tbody>
-          </table>
+      <!-- Fermentadores -->
+      <div class="tab-pane fade" id="fermentersTab">
+        <div class="d-flex justify-content-between mb-2">
+          <h5>Fermentadores</h5>
+          <button class="btn btn-sm btn-primary" onclick="openModal('fermenters')">Agregar</button>
         </div>
-
-        <!-- Estilos -->
-        <div class="tab-pane fade" id="stylesTab">
-          <div class="d-flex justify-content-between mb-2">
-            <h5>Estilos</h5>
-            <button class="btn btn-sm btn-primary" onclick="openModal('styles')">Agregar</button>
-          </div>
-          <table id="stylesTable" class="table table-striped">
-            <thead><tr><th>ID</th><th>Marca</th><th>Nombre</th><th>Color</th><th>Mostrar Siempre</th><th>Última Modificación</th><th>Acciones</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <!-- Fermentadores -->
-        <div class="tab-pane fade" id="fermentersTab">
-          <div class="d-flex justify-content-between mb-2">
-            <h5>Fermentadores</h5>
-            <button class="btn btn-sm btn-primary" onclick="openModal('fermenters')">Agregar</button>
-          </div>
-          <table id="fermentersTable" class="table table-striped">
-            <thead><tr><th>ID</th><th>Nombre</th><th>Tamaño (L)</th><th>Color</th><th>Última Modificación</th><th>Acciones</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <!-- Envases -->
-        <div class="tab-pane fade" id="containersTab">
-          <div class="d-flex justify-content-between mb-2">
-            <h5>Envases</h5>
-            <button class="btn btn-sm btn-primary" onclick="openModal('containers')">Agregar</button>
-          </div>
-          <table id="containersTable" class="table table-striped">
-            <thead><tr><th>ID</th><th>Nombre</th><th>Tamaño (L)</th><th>Tipo</th><th>Color</th><th>Última Modificación</th><th>Acciones</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+        <table id="fermentersTable" class="table table-striped">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Tamaño (L)</th><th>Color</th><th>Última modificación</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
-    </main>
-  </div>
 
-  <!-- Modales -->
-  <div id="modalsContainer"></div>
+      <!-- Envases -->
+      <div class="tab-pane fade" id="containersTab">
+        <div class="d-flex justify-content-between mb-2">
+          <h5>Envases</h5>
+          <button class="btn btn-sm btn-primary" onclick="openModal('containers')">Agregar</button>
+        </div>
+        <table id="containersTable" class="table table-striped">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Tamaño (L)</th><th>Tipo</th><th>Color</th><th>Última modificación</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
 
-  <!-- JS -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="./js/app.js"></script>
