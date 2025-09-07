@@ -62,6 +62,60 @@
         <button id="mv_clear" class="btn btn-outline-secondary w-100">Limpiar</button>
       </div>
     </div>
+    <!-- Totales -->
+    <div id="mv_totals" class="row g-2 my-3">
+    <div class="col-12 col-md-4">
+        <div class="card"><div class="card-body">
+        <div class="small text-muted">Altas</div>
+        <div id="mv_total_in" class="h4 m-0">0</div>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card"><div class="card-body">
+        <div class="small text-muted">Bajas</div>
+        <div id="mv_total_out" class="h4 m-0">0</div>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card"><div class="card-body">
+        <div class="small text-muted">Neto</div>
+        <div id="mv_total_net" class="h4 m-0">0</div>
+        </div></div>
+    </div>
+    </div>
+
+    <!-- Desglose -->
+    <div id="mv_breakdown_wrap" class="card d-none">
+    <div class="card-body">
+        <h6 id="mv_breakdown_title" class="card-title mb-2">Desglose</h6>
+        <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0" id="mv_breakdown_table">
+            <thead><tr><th>Grupo</th><th>Altas</th><th>Bajas</th><th>Neto</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        </div>
+    </div>
+    </div>
+
+    <!-- Totales por día + saldo acumulado -->
+    <div id="mv_daily_wrap" class="card mt-3 d-none">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-2">Totales por día (con saldo acumulado)</h6>
+        <button id="mv_daily_csv" class="btn btn-sm btn-outline-secondary">CSV diario</button>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0" id="mv_daily_table">
+            <thead>
+            <tr>
+                <th>Fecha</th><th>Altas</th><th>Bajas</th><th>Neto</th><th>Saldo acum.</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        </div>
+    </div>
+    </div>
 
     <div class="d-flex justify-content-end mt-2">
       <button id="mv_export" class="btn btn-primary">Exportar CSV</button>

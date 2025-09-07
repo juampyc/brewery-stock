@@ -197,6 +197,92 @@ function renderMovementsTotals(){
     wrap.classList.add("d-none");
   }
 }
+
+// --- lista filtrada actual (búsqueda + entidad + fecha) ---
+function getFilteredMovements(){
+  const st = tableState.movements;
+  let list = (st.items || []).filter(r => rowMatches(r, st.q || ""));
+  list = applyMovementFilters(list);
+  return list;
+}
+
+// --- saldo de apertura (movimientos ANTERIORES al "Desde") ---
+function getOpeningBalance(){
+  const st = tableState.movements;
+  const from = st.from || "";
+  if (!from) return 0; // si no hay "desde", arrancamos en 0
+  let list = st.items || [];
+  if (st.entity) list = list.filter(r => String(r.entity) === String(st.entity));
+  // NO aplico la búsqueda al saldo apertura (normalmente el saldo no se filtra por texto)
+  list = list.filter(r => String(r.dateTime||"").slice(0,10) < from);
+
+  let altas = 0, bajas = 0;
+  for (const r of list){
+    const t = String(r.type||"").toLowerCase();
+    const q = Number(r.qty||0);
+    if (t==="alta") altas += q; else if (t==="baja") bajas += q;
+  }
+  return altas - bajas;
+}
+
+// --- arma totales por día + saldo acumulado, orden asc por fecha ---
+function computeDailyWithBalance(){
+  const list = getFilteredMovements();
+  // agrupar por fecha (YYYY-MM-DD)
+  const map = new Map();
+  for (const r of list){
+    const d = String(r.dateTime || "").slice(0,10);
+    const t = String(r.type||"").toLowerCase();
+    const q = Number(r.qty || 0);
+    if (!map.has(d)) map.set(d, { in:0, out:0 });
+    if (t==="alta") map.get(d).in += q;
+    else if (t==="baja") map.get(d).out += q;
+  }
+  const days = Array.from(map.entries())
+    .map(([date, v]) => ({ date, in:v.in, out:v.out, net: v.in - v.out }))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  // saldo apertura + acumulado
+  let balance = getOpeningBalance();
+  for (const d of days){
+    balance += d.net;
+    d.balance = balance;
+  }
+  return days;
+}
+
+// --- render diario en la tabla pequeña ---
+function renderMovementsDaily(){
+  const wrap = document.getElementById("mv_daily_wrap");
+  const tbody = document.querySelector("#mv_daily_table tbody");
+  if (!wrap || !tbody) return;
+
+  const days = computeDailyWithBalance();
+  tbody.innerHTML = "";
+
+  if (days.length === 0){
+    wrap.classList.add("d-none");
+    return;
+  }
+  for (const d of days){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${d.date}</td><td>${d.in}</td><td>${d.out}</td><td>${d.net}</td><td>${d.balance}</td>`;
+    tbody.appendChild(tr);
+  }
+  wrap.classList.remove("d-none");
+}
+
+// --- CSV diario ---
+function exportMovementsDailyCSV(){
+  const rows = computeDailyWithBalance();
+  const headers = ["date","in","out","net","balance"];
+  const lines = [headers.join(",")].concat(
+    rows.map(r => [r.date, r.in, r.out, r.net, r.balance].map(csvEscape).join(","))
+  );
+  downloadFile(`movimientos_diario_${Date.now()}.csv`, lines.join("\n"));
+}
+
+
 // --- CSV utils (export Movimientos) ---
 function csvEscape(v){
   let s = v == null ? "" : String(v);
@@ -257,6 +343,9 @@ function setMovementsHandlers(){
 
   // búsqueda + page-size de movimientos
   setSearchHandlers("movements");
+
+  const btnDailyCSV = document.getElementById("mv_daily_csv");
+  btnDailyCSV?.addEventListener("click", exportMovementsDailyCSV);
 }
 
 function rowMatches(row,q){ if(!q) return true; return JSON.stringify(row).toLowerCase().includes(q.toLowerCase()); }
@@ -331,6 +420,10 @@ function renderTable(entity, tableId = entity + "Table"){
   });
 
   renderPager(entity, pages);
+  if (entity === "movements") {
+    renderMovementsTotals();
+    renderMovementsDaily();   // (nuevo, lo agregamos abajo)
+  }
 }
 
 async function loadTable(entity, tableId){ tableState[entity].items = await apiGet(entity); renderTable(entity, tableId); setSearchHandlers(entity); }
