@@ -1,7 +1,7 @@
 /*
   JS Control de Stock Castelo – Bootstrap modals nativos + SweetAlert: confirm/TOAST
 */
-const API_BASE = "https://script.google.com/macros/s/AKfycbxqI4TZxWb6ZQ7bfW8k5v5zEpqe57o66zoTfxNEkcyZ74McJkrwpjeSEXK8NJSxhgRo/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbzvYdUGsPZjJj-odkoZxZhipBhVNAyQqUKRUXM8tYIJv7J9yczyDhjUJaPLjcvD_0oy/exec";
 
 /* ---------- API ---------- */
 async function apiGet(entity, action = "getAll", extra = {}) {
