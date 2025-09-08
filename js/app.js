@@ -19,6 +19,31 @@ async function apiPost(entity, data, action) {
   return res.json();
 }
 async function apiDelete(entity, id) { return apiPost(entity, { id }, "delete"); }
+function escapeHtml(s){ 
+  return String(s||"")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
+
+// Reemplaza cualquier UUID por sus últimos 6 caracteres (mantiene ":cantidad")
+function shortenUUIDs(text){
+  return String(text || "").replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    (m)=> m.slice(-6)
+  );
+}
+
+// Formatea la descripción de movimientos: acorta UUIDs y trunca largo
+function renderMovementDesc(desc){
+  const s = shortenUUIDs(desc);
+  const MAX = 90;
+  if (s.length > MAX) {
+    const short = s.slice(0, MAX) + "…";
+    return `<span title="${escapeHtml(s)}">${escapeHtml(short)}</span>`;
+  }
+  return escapeHtml(s);
+}
 
 /* =========================
    Toast
@@ -411,8 +436,16 @@ function renderTable(entity, tableId = entity + "Table"){
       pushTD(renderIdShort(row.id)); pushTD(row.brandName || ""); pushTD(row.isCustom ? (row.name||"(custom)") : (row.styleName||""));
       pushTD(row.qty ?? 0); pushTD(row.batch || ""); pushTD(row.provider || ""); pushTD(row.entryDate || ""); pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="movements") {
-      pushTD(renderIdShort(row.id)); pushTD(renderDateLocal(row.dateTime)); pushTD(row.entity || ""); pushTD(row.type || ""); pushTD(row.qty ?? 0); pushTD(row.description || ""); pushTD(renderDateLocal(row.lastModified));
-    }
+      pushTD(renderIdShort(row.id)); pushTD(renderDateLocal(row.dateTime)); pushTD(row.entity || ""); pushTD(row.type || ""); pushTD(row.qty ?? 0); pushTD(renderMovementDesc(row.description || "")); pushTD(renderDateLocal(row.lastModified));
+    } else if (entity==="emptyboxes") {
+      pushTD(renderIdShort(row.id));
+      pushTD(row.type === "box24" ? "x24" : "x12");
+      pushTD(row.batch || "");
+      pushTD(row.provider || "");
+      pushTD(renderDateLocal(row.entryDate));
+      pushTD(renderDateLocal(row.lastModified));
+      pushTD(row.qty ?? 0);
+      }
     if (entity!=="movements") {
       const tdA = document.createElement("td");
       tdA.innerHTML = `
@@ -511,6 +544,37 @@ function modalBodyHtml(entity, data={}, brands=[], styles=[]){
         <input id="containerColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color||"#000000"}">
       </div>`;
   }
+  if (entity==="emptyboxes"){
+  return `
+    <div class="mb-2">
+      <label class="form-label fw-semibold">Tipo de caja</label>
+      <select id="eb_type" class="form-select">
+        <option value="box12" ${data.type==="box24"?"":"selected"}>x12</option>
+        <option value="box24" ${data.type==="box24"?"selected":""}>x24</option>
+      </select>
+    </div>
+    <div class="row g-2">
+      <div class="col-sm-6">
+        <label class="form-label fw-semibold">Cantidad de cajas</label>
+        <input id="eb_qty" type="number" class="form-control" min="1" value="${data.qty||1}">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label fw-semibold">Fecha de ingreso</label>
+        <input id="eb_entry" type="datetime-local" class="form-control"
+               value="${toDatetimeLocalValue(data.entryDate)}">
+      </div>
+    </div>
+    <div class="row g-2 mt-1">
+      <div class="col-sm-6">
+        <label class="form-label fw-semibold">Lote (opcional)</label>
+        <input id="eb_batch" class="form-control" value="${data.batch||""}">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label fw-semibold">Proveedor (opcional)</label>
+        <input id="eb_provider" class="form-control" value="${data.provider||""}">
+      </div>
+    </div>`;
+  } 
   if (entity==="labels"){
     const brandOpts = brands.map(b=>`<option value="${b.id}" ${b.id===data.brandId?"selected":""}>${b.name}</option>`).join("");
     const styleOptions = (brandId)=> styles.filter(s=>String(s.brandId)===String(brandId))
@@ -559,6 +623,182 @@ function modalBodyHtml(entity, data={}, brands=[], styles=[]){
       </div>`;
   }
 }
+
+// ==== Empaquetado ====
+async function initPackaging(){
+  if (!document.getElementById("pk_style")) return;
+
+  // carga base
+  const [styles, labels, cans, boxes] = await Promise.all([
+    apiGet("styles"), apiGet("labels"), apiGet("cans","getAll",{action:"cans_stock"}).catch(()=>apiGet("cans_stock")), // compat
+    apiGet("emptyboxes")
+  ]);
+
+  // helpers
+  const byStyle = new Map();
+  cans.forEach(c=>{
+    const key = String(c.styleId);
+    if (!byStyle.has(key)) byStyle.set(key, []);
+    byStyle.get(key).push(c);
+  });
+
+  const styleSel = document.getElementById("pk_style");
+  const labelSel = document.getElementById("pk_label");
+  const stateSel = document.getElementById("pk_state");
+  const labelHint= document.getElementById("pk_label_stock_hint");
+
+  // estilo
+  styleSel.innerHTML = styles.map(s=>`<option value="${s.id}">${s.brandName || ""} - ${s.name}</option>`).join("");
+  const ensureLabelList = ()=>{
+    const sid = styleSel.value;
+    // etiquetas del estilo (no-custom) + custom distintas (únicas por id)
+    const lbls = labels.filter(l => (!l.isCustom && String(l.styleId)===String(sid)) || l.isCustom);
+    const seen = new Set();
+    labelSel.innerHTML = `<option value="">— Por estilo —</option>` + lbls
+      .filter(l=>{ if(seen.has(l.id)) return false; seen.add(l.id); return true; })
+      .map(l=>{
+        const name = l.isCustom ? `(custom) ${l.name}` : l.styleName;
+        return `<option value="${l.id}">${name}</option>`;
+      }).join("");
+    updateLabelHint();
+  };
+  const countLabelsByStyle = (sid)=> labels
+    .filter(l => !l.isCustom && String(l.styleId)===String(sid))
+    .reduce((a,x)=>a + (Number(x.qty)||0), 0);
+
+  const countLabelsById = (id)=> labels
+    .filter(l => String(l.id)===String(id))
+    .reduce((a,x)=>a + (Number(x.qty)||0), 0);
+
+  function updateLabelHint(){
+    const sid = styleSel.value;
+    const lid = labelSel.value;
+    const n = lid ? countLabelsById(lid) : countLabelsByStyle(sid);
+    labelHint.textContent = `Stock etiquetas: ${n}`;
+    const fh = document.getElementById("pk_final_label_hint"); if (fh) fh.textContent = `Stock etiquetas: ${n}`;
+  }
+
+  styleSel.addEventListener("change", ()=>{
+    ensureLabelList();
+    paintCansStock();
+  });
+  labelSel.addEventListener("change", updateLabelHint);
+
+  ensureLabelList();
+
+  // pintar cards cajas
+  const sumBoxes = (t)=> boxes.filter(b => b.type===t).reduce((a,x)=>a + (Number(x.qty)||0),0);
+  document.getElementById("pk_box12").textContent = sumBoxes("box12");
+  document.getElementById("pk_box24").textContent = sumBoxes("box24");
+
+  // pintar latas por estado del estilo
+  function paintCansStock(){
+    const sid = styleSel.value;
+    const list = byStyle.get(String(sid)) || [];
+    const q = (state)=> list.filter(c=>c.state===state).reduce((a,x)=>a + (Number(x.qty)||0),0);
+    document.getElementById("pk_cans_final").textContent = q("final");
+    document.getElementById("pk_cans_p1").textContent = q("sin_pasteurizar_sin_etiquetar");
+    document.getElementById("pk_cans_p2").textContent = q("sin_pasteurizar_etiquetada");
+    document.getElementById("pk_cans_p3").textContent = q("pasteurizada_sin_etiquetar");
+
+    // tabla por estado+etiqueta
+    const tbody = document.querySelector("#pk_cans_table tbody"); tbody.innerHTML = "";
+    const byKey = new Map();
+    list.forEach(r=>{
+      const key = r.state + "|" + (r.labelName||"");
+      byKey.set(key, (byKey.get(key)||0) + (Number(r.qty)||0));
+    });
+    Array.from(byKey.entries()).forEach(([k,qty])=>{
+      const [st, ln] = k.split("|");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${st}</td><td>${ln||"—"}</td><td class="text-end">${qty}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  paintCansStock();
+
+  // tabla packages (acumuladas)
+  const pk = await apiGet("packages");
+  const tbodyPk = document.querySelector("#pk_packages_table tbody");
+  const key = (x)=> [x.type,x.styleId,x.labelId||""].join("|");
+  const acc = new Map();
+  pk.forEach(p=> acc.set(key(p), (acc.get(key(p)) || { type:p.type, styleName:p.styleName, labelName:p.labelName||"", boxes:0, cans:0 }),
+                         acc.get(key(p)) && (acc.get(key(p)).boxes += Number(p.boxes||0), acc.get(key(p)).cans += Number(p.qtyCans||0)) ));
+  tbodyPk.innerHTML = "";
+  Array.from(acc.values()).forEach(r=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${r.type==="box24"?"x24":"x12"}</td><td>${r.styleName}</td><td>${r.labelName||"—"}</td>
+                    <td class="text-end">${r.boxes}</td><td class="text-end">${r.cans}</td>`;
+    tbodyPk.appendChild(tr);
+  });
+
+  // === Transición a FINAL (modal) ===
+  const modalFinal = new bootstrap.Modal(document.getElementById("pkModalFinal"));
+  document.getElementById("btn_transition_final").addEventListener("click", ()=>{
+    // Replica lista de labels en el modal
+    const lblModal = document.getElementById("pk_final_label");
+    lblModal.innerHTML = labelSel.innerHTML;
+    updateLabelHint();
+    document.getElementById("pk_pkg_dt")?.value || (document.getElementById("pk_pkg_dt").value = nowInputDateTime());
+    modalFinal.show();
+  });
+
+  document.getElementById("pk_final_save").addEventListener("click", async ()=>{
+    try{
+      const styleId = styleSel.value;
+      const qty = Math.max(1, Number(document.getElementById("pk_final_qty").value||0));
+      const consume = document.getElementById("pk_final_consume").value; // auto|no
+      const labelId = document.getElementById("pk_final_label").value || "";
+      await apiPost("cans", {
+        styleId, qty,
+        fromState: "",               // desde cualquiera de los pendientes
+        toState: "final",
+        labelId,
+        consumeLabels: (consume !== "no"),
+        dateTime: nowInputDateTime()
+      }, "transition_state");
+      modalFinal.hide();
+      Toast.fire({icon:"success", title:"Transición aplicada"});
+      location.href = "movements.html?entity=cans&from=today&to=today";
+    } catch(e){
+      Swal.fire("Error", e.message || "No se pudo aplicar la transición", "error");
+    }
+  });
+
+  // === Empaquetar (modal) ===
+  const modalPkg = new bootstrap.Modal(document.getElementById("pkModalPackage"));
+  const pkgType = document.getElementById("pk_pkg_type");
+  const pkgHint = document.getElementById("pk_pkg_boxes_hint");
+  const boxAvail = (t)=> boxes.filter(b=>b.type===t).reduce((a,x)=>a + (Number(x.qty)||0),0);
+  const updHint = ()=> pkgHint.textContent = `Cajas disponibles: ${boxAvail(pkgType.value)}`;
+  pkgType.addEventListener("change", updHint);
+  updHint();
+
+  document.getElementById("btn_package").addEventListener("click", ()=>{
+    document.getElementById("pk_pkg_dt").value = nowInputDateTime();
+    updHint();
+    modalPkg.show();
+  });
+
+  document.getElementById("pk_pkg_save").addEventListener("click", async ()=>{
+    try{
+      const type  = pkgType.value; // box12|box24
+      const boxesN= Math.max(1, Number(document.getElementById("pk_pkg_boxes").value||0));
+      const styleId = styleSel.value;
+      const labelId = labelSel.value || "";
+      const state   = stateSel.value || ""; // tomar de este estado (o cualquiera)
+      await apiPost("packages", {
+        type, boxes: boxesN, styleId, labelId, state, dateTime: nowInputDateTime()
+      }, "package");
+      modalPkg.hide();
+      Toast.fire({icon:"success", title:"Empaquetado registrado"});
+      location.href = "movements.html?entity=cans&from=today&to=today";
+    } catch(e){
+      Swal.fire("Error", e.message || "No se pudo empaquetar", "error");
+    }
+  });
+}
+
 async function openEntityModal(entity, id=null){
   if (!entityModal) initEntityModal();
   if (entity==="brands" && id){
@@ -617,10 +857,29 @@ async function openEntityModal(entity, id=null){
         obj.sizeLiters = Number(document.getElementById("fermenterSize").value);
         obj.color = document.getElementById("fermenterColor").value;
       } else if (entity==="containers"){
-        obj.name = document.getElementById("containerName").value.trim();
-        obj.sizeLiters = Number(document.getElementById("containerSize").value);
-        obj.type = document.getElementById("containerType").value.trim();
-        obj.color = document.getElementById("containerColor").value;
+        return `
+          <div class="mb-2"><label class="form-label fw-semibold">Nombre</label>
+            <input id="containerName" class="form-control" value="${data.name||""}">
+          </div>
+          <div class="mb-2"><label class="form-label fw-semibold">Tamaño (L)</label>
+            <input id="containerSize" type="number" class="form-control" value="${data.sizeLiters||0}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Tipo</label>
+            <select id="containerType" class="form-select">
+              <option value="lata" ${data.type==="barril"?"":"selected"}>lata</option>
+              <option value="barril" ${data.type==="barril"?"selected":""}>barril</option>
+            </select>
+          </div>
+          <div class="mb-2 text-center"><label class="form-label fw-semibold d-block">Color</label>
+            <input id="containerColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color||"#000000"}">
+          </div>`;
+      } else if (entity==="emptyboxes"){
+        obj.type      = document.getElementById("eb_type").value;       // box12 | box24
+        obj.qty       = Math.max(1, Number(document.getElementById("eb_qty").value||1));
+        obj.entryDate = fromDatetimeLocalValue(document.getElementById("eb_entry").value);
+        obj.batch     = document.getElementById("eb_batch").value.trim();
+        obj.provider  = document.getElementById("eb_provider").value.trim();
       } else if (entity==="labels"){
         const brandId = document.getElementById("labelBrandId").value;
         const isCustom = document.getElementById("labelIsCustom").checked;
@@ -897,6 +1156,9 @@ async function boot(){
     await loadTable("styles","stylesTable");
     await loadTable("fermenters","fermentersTable");
     await loadTable("containers","containersTable");
+  }
+  if (document.getElementById("emptyboxesTable")) {
+    await loadTable("emptyboxes","emptyboxesTable");
   }
   if (document.getElementById("labelsTable")) {
     await loadTable("labels","labelsTable");
