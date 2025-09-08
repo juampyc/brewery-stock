@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
   <!-- Versionado para cache-busting -->
-  <script>window.APP_VER = "20250910a";</script>
+  <script>window.APP_VER = "20250910z";</script>
 
   <!-- Librerías primero -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
@@ -36,7 +36,15 @@
   </header>
 
   <main class="container py-3">
-    <h1 class="h4 mb-3">Empaquetado / Stock</h1>
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <h1 class="h4 mb-0">Empaquetado / Stock</h1>
+      <div class="ms-auto d-flex gap-2">
+        <button id="btnOpenPackage" class="btn btn-sm btn-primary">
+          <span class="material-icons" style="font-size:18px;vertical-align:middle">inventory_2</span>
+          <span class="ms-1">Registrar empaquetado</span>
+        </button>
+      </div>
+    </div>
 
     <!-- Filtros -->
     <div class="card mb-3">
@@ -63,12 +71,12 @@
 
     <!-- Resumen en cards -->
     <div class="row g-3" id="pk_cards_row">
-      <!-- Se llena por JS -->
+      <!-- JS -->
     </div>
 
     <!-- Tablas -->
     <div class="row g-3 mt-1">
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-xxl-6">
         <div class="card h-100">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span>Stock de latas (por estilo y estado)</span>
@@ -95,7 +103,7 @@
         </div>
       </div>
 
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-xxl-6">
         <div class="card h-100">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span>Stock de paquetes (por estilo y tipo)</span>
@@ -124,21 +132,163 @@
       </div>
     </div>
 
+    <!-- Admin de estados -->
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Administrar estados (por etiqueta)</span>
+        <span class="text-muted small">Mover lotes entre estados y consumir etiquetas si corresponde</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" id="pk_admin_table">
+            <thead>
+              <tr>
+                <th>Marca</th>
+                <th>Estilo</th>
+                <th>Estado</th>
+                <th>Etiqueta</th>
+                <th class="text-end">Latas</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody><!-- JS --></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 
-  <!-- ======== Script de página (usa apiGet de app.js) ======== -->
+  <!-- ======== Modal: Registrar empaquetado ======== -->
+  <div class="modal fade" id="pkgModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Registrar empaquetado</h5>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Marca</label>
+            <select id="pkg_brand" class="form-select"></select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Estilo</label>
+            <select id="pkg_style" class="form-select"></select>
+          </div>
+
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Estado origen</label>
+            <select id="pkg_state" class="form-select">
+              <option value="">Cualquiera</option>
+              <option value="final">final</option>
+              <option value="pasteurizada_sin_etiquetar">pasteurizada_sin_etiquetar</option>
+              <option value="sin_pasteurizar_etiquetada">sin_pasteurizar_etiquetada</option>
+              <option value="sin_pasteurizar_sin_etiquetar">sin_pasteurizar_sin_etiquetar</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Etiqueta (opcional)</label>
+            <select id="pkg_label" class="form-select">
+              <!-- Se llena por estilo: primero "Por estilo (auto)" y luego etiquetas únicas (sin duplicados) -->
+            </select>
+          </div>
+
+          <div class="col-sm-4">
+            <label class="form-label fw-semibold">Tipo de caja</label>
+            <select id="pkg_type" class="form-select">
+              <option value="box12">Caja x12</option>
+              <option value="box24">Caja x24</option>
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label fw-semibold">Cajas</label>
+            <input id="pkg_boxes" type="number" min="1" value="1" class="form-control">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label fw-semibold">Fecha y hora</label>
+            <input id="pkg_dt" type="datetime-local" class="form-control">
+          </div>
+
+          <div class="col-12">
+            <div class="border rounded p-2 small">
+              <div><b>Stock disponible de latas (según filtros):</b> <span id="pkg_avail_cans">0</span></div>
+              <div><b>Cajas vacías disponibles:</b> <span id="pkg_avail_boxes">0</span> (<span id="pkg_boxes_type">x12</span>)</div>
+              <div class="text-muted">Total latas a empaquetar: <span id="pkg_will_use">0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="pkg_save" class="btn btn-primary">Guardar</button>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ======== Modal: Transición de estado ======== -->
+  <div class="modal fade" id="transModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mover latas / Transición de estado</h5>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="trans_info"></div>
+        <div class="row g-2">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Cantidad a mover</label>
+            <input id="trans_qty" type="number" min="1" value="1" class="form-control">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Estado destino</label>
+            <select id="trans_to" class="form-select">
+              <option value="final">final</option>
+              <option value="pasteurizada_sin_etiquetar">pasteurizada_sin_etiquetar</option>
+              <option value="sin_pasteurizar_etiquetada">sin_pasteurizar_etiquetada</option>
+              <option value="sin_pasteurizar_sin_etiquetar">sin_pasteurizar_sin_etiquetar</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input id="trans_consume_labels" class="form-check-input" type="checkbox">
+              <label class="form-check-label" for="trans_consume_labels">Consumir etiquetas si el destino requiere etiqueta</label>
+            </div>
+          </div>
+          <div class="col-12" id="trans_label_wrap">
+            <label class="form-label fw-semibold">Etiqueta (opcional)</label>
+            <select id="trans_label" class="form-select"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Fecha y hora</label>
+            <input id="trans_dt" type="datetime-local" class="form-control">
+          </div>
+          <div class="col-12">
+            <div class="border rounded p-2 small">
+              <b>Disponible en origen:</b> <span id="trans_avail">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="trans_save" class="btn btn-primary">Guardar</button>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ======== Script de página (usa apiGet/apiPost de app.js) ======== -->
   <script>
   (function(){
-    // Data cache local
-    let BRANDS = [], STYLES = [], CANS = [], PACKS = [];
+    // Data cache
+    let BRANDS=[], STYLES=[], CANS=[], PACKS=[], LABELS=[], EMPTYBOXES=[];
+    let pkgModal, transModal;
 
-    // Helpers
     const byId = (id) => document.getElementById(id);
-    const fmtInt = (n) => (Number(n)||0).toLocaleString();
+    const fmtInt = (n)=> (Number(n)||0).toLocaleString();
 
-    function friendlyType(t){
-      return String(t)==="box24" ? "Caja x24" : "Caja x12";
-    }
+    function friendlyType(t){ return String(t)==="box24" ? "Caja x24" : "Caja x12"; }
+    function unitsPerType(t){ return String(t)==="box24" ? 24 : 12; }
+    function isLabeledState(s){ return /etiquetad/i.test(String(s||"")); }
+
     function stateBadge(state){
       const map = {
         "final": "success",
@@ -150,26 +300,22 @@
       return `<span class="badge bg-${cls}">${state.replaceAll("_"," ")}</span>`;
     }
 
-    // Filtros
+    // ===== Filtros =====
     function loadFilters(){
       const selB = byId("pk_filter_brand");
       const selS = byId("pk_filter_style");
-      selB.innerHTML = `<option value="">Todas</option>` + BRANDS
-        .map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
-      selS.innerHTML = `<option value="">Todos</option>` + STYLES
-        .map(s=>`<option value="${s.id}" data-brand="${s.brandId}">${s.name}</option>`).join("");
+      selB.innerHTML = `<option value="">Todas</option>` + BRANDS.map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
+      selS.innerHTML = `<option value="">Todos</option>` + STYLES.map(s=>`<option value="${s.id}" data-brand="${s.brandId}">${s.name}</option>`).join("");
 
-      // Vincular estilo a marca
       selB.addEventListener("change", ()=>{
         const bid = selB.value;
-        const opts = STYLES
-          .filter(s => !bid || String(s.brandId)===String(bid))
+        const opts = STYLES.filter(s => !bid || String(s.brandId)===String(bid))
           .map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
         selS.innerHTML = `<option value="">Todos</option>` + opts;
       });
     }
 
-    // Agregaciones
+    // ===== Agregaciones para vistas =====
     function aggregateCans(){
       // key: styleId|state
       const map = new Map();
@@ -181,10 +327,8 @@
       }
       return Array.from(map.values());
     }
-
     function aggregatePackages(){
-      // key: styleId|type  (sumo cajas y latas, ignorando labelId)
-      const map = new Map();
+      const map = new Map(); // key: styleId|type
       for (const p of PACKS){
         const key = [p.styleId, p.type].join("|");
         const prev = map.get(key) || { styleId:p.styleId, type:p.type, boxes:0, qtyCans:0 };
@@ -195,13 +339,11 @@
       return Array.from(map.values());
     }
 
-    // Render: CARDS
+    // ===== Cards =====
     function renderCards(){
       const row = byId("pk_cards_row");
       row.innerHTML = "";
 
-      // Construyo por estilo
-      // cansByStyle: styleId -> {total, porEstado}
       const cansAgg = aggregateCans();
       const byStyle = new Map();
       for (const a of cansAgg){
@@ -210,214 +352,189 @@
         st.estados[a.state] = (st.estados[a.state]||0) + Number(a.qty||0);
         byStyle.set(a.styleId, st);
       }
-
-      // packages por estilo
       const packAgg = aggregatePackages();
       const pkByStyle = new Map();
       for (const a of packAgg){
-        const st = pkByStyle.get(a.styleId) || { box12: {boxes:0,cans:0}, box24:{boxes:0,cans:0} };
-        if (String(a.type)==="box24"){
-          st.box24.boxes += Number(a.boxes||0);
-          st.box24.cans  += Number(a.qtyCans||0);
-        } else {
-          st.box12.boxes += Number(a.boxes||0);
-          st.box12.cans  += Number(a.qtyCans||0);
-        }
+        const st = pkByStyle.get(a.styleId) || { box12:{boxes:0,cans:0}, box24:{boxes:0,cans:0} };
+        if (a.type==="box24"){ st.box24.boxes+=a.boxes; st.box24.cans+=a.qtyCans; }
+        else { st.box12.boxes+=a.boxes; st.box12.cans+=a.qtyCans; }
         pkByStyle.set(a.styleId, st);
       }
 
-      // Filtros
       const fBrand = byId("pk_filter_brand").value;
       const fStyle = byId("pk_filter_style").value;
-
-      // Armado de cards por estilo que cumpla filtros y tenga algo
-      const styles = STYLES.filter(s => {
+      const styles = STYLES.filter(s=>{
         if (fBrand && String(s.brandId)!==String(fBrand)) return false;
         if (fStyle && String(s.id)!==String(fStyle)) return false;
-        const hasCans = byStyle.has(s.id);
-        const hasPacks = pkByStyle.has(s.id);
-        return hasCans || hasPacks;
-      });
-
-      // Orden por total de latas (desc)
-      styles.sort((a,b)=>{
+        return byStyle.has(s.id) || pkByStyle.has(s.id);
+      }).sort((a,b)=>{
         const ta = byStyle.get(a.id)?.total || 0;
         const tb = byStyle.get(b.id)?.total || 0;
         return tb - ta;
       });
 
       for (const s of styles){
-        const brand = BRANDS.find(b => String(b.id)===String(s.brandId));
+        const brand = BRANDS.find(b=>String(b.id)===String(s.brandId));
         const stC = byStyle.get(s.id) || { total:0, estados:{} };
         const stP = pkByStyle.get(s.id) || { box12:{boxes:0,cans:0}, box24:{boxes:0,cans:0} };
 
-        const estadosHtml = Object.entries(stC.estados)
-          .sort((a,b)=>b[1]-a[1])
-          .map(([state, qty]) => `
-            <div class="d-flex justify-content-between align-items-center">
-              <div>${stateBadge(state)}</div>
-              <div class="fw-semibold">${fmtInt(qty)}</div>
-            </div>
-          `).join("") || `<div class="text-muted small">Sin latas registradas</div>`;
+        const estadosHtml = Object.entries(stC.estados).sort((a,b)=>b[1]-a[1]).map(([state, qty]) => `
+          <div class="d-flex justify-content-between align-items-center">
+            <div>${stateBadge(state)}</div>
+            <div class="fw-semibold">${fmtInt(qty)}</div>
+          </div>`).join("") || `<div class="text-muted small">Sin latas registradas</div>`;
 
         const packsHtml = `
           <div class="d-flex justify-content-between"><span class="badge bg-dark">Caja x12</span><span class="fw-semibold">${fmtInt(stP.box12.boxes)} cajas</span></div>
           <div class="d-flex justify-content-between"><span class="badge bg-dark">Caja x24</span><span class="fw-semibold">${fmtInt(stP.box24.boxes)} cajas</span></div>
           <div class="border-top pt-1 mt-1 d-flex justify-content-between text-muted">
             <span>Latas en paquetes</span><span>${fmtInt(stP.box12.cans + stP.box24.cans)}</span>
-          </div>
-        `;
+          </div>`;
 
         const col = document.createElement("div");
         col.className = "col-12 col-md-6 col-xxl-4";
         col.innerHTML = `
-          <div class="card h-100">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start mb-1">
-                <div>
-                  <div class="text-muted small">${brand?.name || "Marca"}</div>
-                  <div class="h6 mb-0">${s.name}</div>
-                </div>
-                <div class="text-end">
-                  <div class="text-muted small">Latas</div>
-                  <div class="h5 mb-0">${fmtInt(stC.total)}</div>
+          <div class="card h-100"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <div class="text-muted small">${brand?.name || "Marca"}</div>
+                <div class="h6 mb-0">${s.name}</div>
+              </div>
+              <div class="text-end">
+                <div class="text-muted small">Latas</div>
+                <div class="h5 mb-0">${fmtInt(stC.total)}</div>
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-12 col-lg-6">
+                <div class="border rounded p-2">
+                  <div class="small text-muted mb-1">Por estado</div>
+                  ${estadosHtml}
                 </div>
               </div>
-
-              <div class="row g-2">
-                <div class="col-12 col-lg-6">
-                  <div class="border rounded p-2">
-                    <div class="small text-muted mb-1">Por estado</div>
-                    ${estadosHtml}
-                  </div>
-                </div>
-                <div class="col-12 col-lg-6">
-                  <div class="border rounded p-2">
-                    <div class="small text-muted mb-1">Paquetes</div>
-                    ${packsHtml}
-                  </div>
+              <div class="col-12 col-lg-6">
+                <div class="border rounded p-2">
+                  <div class="small text-muted mb-1">Paquetes</div>
+                  ${packsHtml}
                 </div>
               </div>
             </div>
-          </div>
-        `;
+          </div></div>`;
         row.appendChild(col);
       }
 
-      if (row.children.length === 0){
+      if (!row.children.length){
         row.innerHTML = `<div class="col"><div class="alert alert-light border">No hay stock para los filtros seleccionados.</div></div>`;
       }
     }
 
-    // Render: TABLAS
+    // ===== Tablas =====
     function renderTables(){
-      // CANS
-      const cansAgg = aggregateCans()
-        .map(a=>{
-          const st = STYLES.find(s=>String(s.id)===String(a.styleId));
-          const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
-          return {
-            brandName: br?.name || "",
-            styleName: st?.name || "",
-            styleId: a.styleId,
-            state: a.state,
-            qty: Number(a.qty||0)
-          };
-        });
-
-      // filtros
+      /* tabla CANS agregada por estado */
+      const cansAgg = aggregateCans().map(a=>{
+        const st = STYLES.find(s=>String(s.id)===String(a.styleId));
+        const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
+        return { brandName: br?.name||"", styleName: st?.name||"", styleId:a.styleId, state:a.state, qty:Number(a.qty||0) };
+      });
       const fBrand = byId("pk_filter_brand").value;
       const fStyle = byId("pk_filter_style").value;
       const cansFilt = cansAgg.filter(r=>{
-        if (fBrand){
-          const st = STYLES.find(s=>String(s.id)===String(r.styleId));
-          if (!st || String(st.brandId)!==String(fBrand)) return false;
-        }
+        if (fBrand){ const st = STYLES.find(s=>String(s.id)===String(r.styleId)); if (!st || String(st.brandId)!==String(fBrand)) return false; }
         if (fStyle && String(r.styleId)!==String(fStyle)) return false;
         return true;
-      });
-
-      cansFilt.sort((a,b)=>{
-        if (a.brandName!==b.brandName) return a.brandName.localeCompare(b.brandName);
-        if (a.styleName!==b.styleName) return a.styleName.localeCompare(b.styleName);
-        return a.state.localeCompare(b.state);
-      });
-
+      }).sort((a,b)=> a.brandName.localeCompare(b.brandName) || a.styleName.localeCompare(b.styleName) || a.state.localeCompare(b.state));
       const tbC = byId("pk_cans_table").querySelector("tbody");
       tbC.innerHTML = "";
-      let totalCans = 0;
+      let totalCans=0;
       for (const r of cansFilt){
         totalCans += r.qty;
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${r.brandName}</td>
-          <td>${r.styleName}</td>
-          <td>${r.state.replaceAll("_"," ")}</td>
-          <td class="text-end">${fmtInt(r.qty)}</td>
-        `;
+        tr.innerHTML = `<td>${r.brandName}</td><td>${r.styleName}</td><td>${r.state.replaceAll("_"," ")}</td><td class="text-end">${fmtInt(r.qty)}</td>`;
         tbC.appendChild(tr);
       }
       byId("pk_cans_total").textContent = fmtInt(totalCans);
 
-      // PACKAGES
-      const pkAgg = aggregatePackages()
-        .map(a=>{
-          const st = STYLES.find(s=>String(s.id)===String(a.styleId));
-          const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
-          return {
-            brandName: br?.name || "",
-            styleName: st?.name || "",
-            styleId: a.styleId,
-            type: a.type,
-            boxes: Number(a.boxes||0),
-            qtyCans: Number(a.qtyCans||0)
-          };
-        });
-
+      /* tabla PACKAGES */
+      const pkAgg = aggregatePackages().map(a=>{
+        const st = STYLES.find(s=>String(s.id)===String(a.styleId));
+        const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
+        return { brandName: br?.name||"", styleName: st?.name||"", styleId:a.styleId, type:a.type, boxes:Number(a.boxes||0), qtyCans:Number(a.qtyCans||0) };
+      });
       const pkFilt = pkAgg.filter(r=>{
-        if (fBrand){
-          const st = STYLES.find(s=>String(s.id)===String(r.styleId));
-          if (!st || String(st.brandId)!==String(fBrand)) return false;
-        }
+        if (fBrand){ const st = STYLES.find(s=>String(s.id)===String(r.styleId)); if (!st || String(st.brandId)!==String(fBrand)) return false; }
         if (fStyle && String(r.styleId)!==String(fStyle)) return false;
         return true;
-      });
-
-      pkFilt.sort((a,b)=>{
-        if (a.brandName!==b.brandName) return a.brandName.localeCompare(b.brandName);
-        if (a.styleName!==b.styleName) return a.styleName.localeCompare(b.styleName);
-        return a.type.localeCompare(b.type);
-      });
-
+      }).sort((a,b)=> a.brandName.localeCompare(b.brandName) || a.styleName.localeCompare(b.styleName) || a.type.localeCompare(b.type));
       const tbP = byId("pk_packages_table").querySelector("tbody");
       tbP.innerHTML = "";
       let totBoxes=0, totCans=0;
       for (const r of pkFilt){
         totBoxes += r.boxes; totCans += r.qtyCans;
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${r.brandName}</td>
-          <td>${r.styleName}</td>
-          <td>${friendlyType(r.type)}</td>
-          <td class="text-end">${fmtInt(r.boxes)}</td>
-          <td class="text-end">${fmtInt(r.qtyCans)}</td>
-        `;
+        tr.innerHTML = `<td>${r.brandName}</td><td>${r.styleName}</td><td>${friendlyType(r.type)}</td><td class="text-end">${fmtInt(r.boxes)}</td><td class="text-end">${fmtInt(r.qtyCans)}</td>`;
         tbP.appendChild(tr);
       }
       byId("pk_boxes_total").textContent = fmtInt(totBoxes);
       byId("pk_boxes_cans_total").textContent = fmtInt(totCans);
+
+      /* tabla ADMIN (granular por etiqueta) */
+      const tbA = byId("pk_admin_table").querySelector("tbody");
+      tbA.innerHTML = "";
+      let rows = CANS.slice(); // ya vienen por labelId/labelName
+      rows = rows.filter(r=>{
+        if (fStyle && String(r.styleId)!==String(fStyle)) return false;
+        if (fBrand){
+          const st = STYLES.find(s=>String(s.id)===String(r.styleId));
+          if (!st || String(st.brandId)!==String(fBrand)) return false;
+        }
+        return (Number(r.qty)||0) > 0;
+      });
+      rows.sort((a,b)=>{
+        const sa = STYLES.find(s=>String(s.id)===String(a.styleId));
+        const sb = STYLES.find(s=>String(s.id)===String(b.styleId));
+        const ba = BRANDS.find(x=>String(x.id)===String(sa?.brandId||""));
+        const bb = BRANDS.find(x=>String(x.id)===String(sb?.brandId||""));
+        return (ba?.name||"").localeCompare(bb?.name||"") ||
+               (sa?.name||"").localeCompare(sb?.name||"") ||
+               String(a.state).localeCompare(String(b.state)) ||
+               String(a.labelName||"").localeCompare(String(b.labelName||""));
+      });
+      for (const r of rows){
+        const st = STYLES.find(s=>String(s.id)===String(r.styleId));
+        const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${br?.name||""}</td>
+          <td>${st?.name||""}</td>
+          <td>${r.state.replaceAll("_"," ")}</td>
+          <td>${r.labelName||"—"}</td>
+          <td class="text-end">${fmtInt(r.qty||0)}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" data-action="move" data-style="${r.styleId}" data-state="${r.state}" data-label="${r.labelId||""}" data-avail="${Number(r.qty||0)}">Mover</button>
+          </td>`;
+        tbA.appendChild(tr);
+      }
+      // wire buttons
+      tbA.querySelectorAll('button[data-action="move"]').forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          openTransModal({
+            styleId: btn.dataset.style,
+            fromState: btn.dataset.state,
+            labelId: btn.dataset.label || "",
+            avail: Number(btn.dataset.avail||0)
+          });
+        });
+      });
     }
 
-    // CSV export sencillos
+    // ===== CSV =====
     function toCSV(rows, headers){
       const esc = v => {
         let s = v==null ? "" : String(v);
         if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g,'""') + '"';
         return s;
       };
-      const lines = [headers.join(",")].concat(
-        rows.map(r => headers.map(h => esc(r[h])).join(","))
-      );
+      const lines = [headers.join(",")].concat(rows.map(r => headers.map(h => esc(r[h])).join(",")));
       return lines.join("\n");
     }
     function download(name, content){
@@ -427,80 +544,258 @@
       document.body.appendChild(a); a.click();
       setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
     }
-
     function exportCansCSV(){
-      // Reusar los datos ya agregados, sin filtros para exportar todo
       const rows = aggregateCans().map(a=>{
         const st = STYLES.find(s=>String(s.id)===String(a.styleId));
         const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
-        return {
-          brand: br?.name || "",
-          style: st?.name || "",
-          state: a.state,
-          qty: Number(a.qty||0)
-        };
+        return { brand: br?.name || "", style: st?.name || "", state: a.state, qty: Number(a.qty||0) };
       });
-      const csv = toCSV(rows, ["brand","style","state","qty"]);
-      download(`stock_latas_${Date.now()}.csv`, csv);
+      download(`stock_latas_${Date.now()}.csv`, toCSV(rows, ["brand","style","state","qty"]));
     }
     function exportPackagesCSV(){
       const rows = aggregatePackages().map(a=>{
         const st = STYLES.find(s=>String(s.id)===String(a.styleId));
         const br = BRANDS.find(b=>String(b.id)===String(st?.brandId||""));
-        return {
-          brand: br?.name || "",
-          style: st?.name || "",
-          type: friendlyType(a.type),
-          boxes: Number(a.boxes||0),
-          cans: Number(a.qtyCans||0)
-        };
+        return { brand: br?.name || "", style: st?.name || "", type: friendlyType(a.type), boxes: Number(a.boxes||0), cans: Number(a.qtyCans||0) };
       });
-      const csv = toCSV(rows, ["brand","style","type","boxes","cans"]);
-      download(`stock_paquetes_${Date.now()}.csv`, csv);
+      download(`stock_paquetes_${Date.now()}.csv`, toCSV(rows, ["brand","style","type","boxes","cans"]));
     }
 
-    // Cargar datos y render
+    // ===== Utiles =====
+    function stylesByBrand(brandId){
+      return STYLES.filter(s => !brandId || String(s.brandId)===String(brandId));
+    }
+    function uniqueLabelOptionsForStyle(styleId){
+      const opts = [{ value:"", text:"(Por estilo - automático)" }];
+      // Personalizadas únicas por nombre
+      const customs = LABELS.filter(l => !!l.isCustom);
+      const seenCustom = new Set();
+      customs.forEach(l=>{
+        const key = l.name.trim().toLowerCase();
+        if (!seenCustom.has(key)){
+          seenCustom.add(key);
+          opts.push({ value:l.id, text:`(custom) ${l.name}` });
+        }
+      });
+      // Labels por estilo: mostrar una sola opción representativa (sin duplicar partidas)
+      const styleLabels = LABELS.filter(l => !l.isCustom && String(l.styleId)===String(styleId));
+      if (styleLabels.length){
+        // mostrás una sola opción “Etiqueta del estilo”
+        opts.push({ value: styleLabels[0].id, text: `Etiqueta: ${styleLabels[0].styleName}` });
+      }
+      return opts;
+    }
+    function availableCans(styleId, state, labelId){
+      return CANS.filter(c => String(c.styleId)===String(styleId))
+                 .filter(c => !state || String(c.state)===String(state))
+                 .filter(c => !labelId || String(c.labelId||"")===String(labelId))
+                 .reduce((a,x)=>a + Number(x.qty||0), 0);
+    }
+    function availableBoxes(type){
+      // EMPTYBOXES: sumatoria de qty por type
+      return EMPTYBOXES.filter(b => String(b.type)===String(type))
+                       .reduce((a,x)=>a + Number(x.qty||0), 0);
+    }
+    function nowInput(){
+      // si tenés nowInputDateTime en app.js lo uso; si no, fallback
+      try{ return nowInputDateTime(); }catch(_){
+        const d=new Date(), p=n=>String(n).padStart(2,"0");
+        return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+    }
+
+    // ===== Modal Empaquetado =====
+    function openPkgModal(){
+      pkgModal = pkgModal || new bootstrap.Modal(byId("pkgModal"));
+      const selB = byId("pkg_brand");
+      const selS = byId("pkg_style");
+      const selState = byId("pkg_state");
+      const selLabel = byId("pkg_label");
+      const selType  = byId("pkg_type");
+      const inBoxes  = byId("pkg_boxes");
+      const inDT     = byId("pkg_dt");
+      const outAvail = byId("pkg_avail_cans");
+      const outBoxAv = byId("pkg_avail_boxes");
+      const outBoxTy = byId("pkg_boxes_type");
+      const outWill  = byId("pkg_will_use");
+
+      // fill selects
+      selB.innerHTML = BRANDS.map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
+      const firstBrand = selB.value || BRANDS[0]?.id || "";
+      const fillStyles = ()=>{
+        const list = stylesByBrand(selB.value);
+        selS.innerHTML = list.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+        fillLabels();
+        updateAvailability();
+      };
+      const fillLabels = ()=>{
+        const opts = uniqueLabelOptionsForStyle(selS.value);
+        selLabel.innerHTML = opts.map(o=>`<option value="${o.value}">${o.text}</option>`).join("");
+      };
+
+      const updateAvailability = ()=>{
+        const styleId = selS.value;
+        const state   = selState.value;
+        const labelId = selLabel.value || "";
+        const type    = selType.value;
+        const boxes   = Math.max(1, Number(inBoxes.value||1));
+        const cansNeed= boxes * unitsPerType(type);
+
+        const cansAvail = availableCans(styleId, state, labelId);
+        const boxAvail  = availableBoxes(type);
+
+        outAvail.textContent = fmtInt(cansAvail);
+        outBoxAv.textContent = fmtInt(boxAvail);
+        outBoxTy.textContent = (type==="box24"?"x24":"x12");
+        outWill.textContent  = fmtInt(cansNeed);
+
+        // habilitar/deshabilitar
+        const btn = byId("pkg_save");
+        btn.disabled = (cansNeed>cansAvail) || (boxes>boxAvail);
+      };
+
+      selB.onchange = fillStyles;
+      selS.onchange = ()=>{ fillLabels(); updateAvailability(); };
+      selLabel.onchange = updateAvailability;
+      selState.onchange = updateAvailability;
+      selType.onchange  = updateAvailability;
+      inBoxes.oninput   = updateAvailability;
+
+      // defaults
+      if (!selB.value && firstBrand) selB.value = firstBrand;
+      fillStyles();
+      selState.value = ""; // cualquiera
+      selType.value = "box12";
+      inBoxes.value = 1;
+      inDT.value = nowInput();
+      updateAvailability();
+
+      // Guardar
+      const save = byId("pkg_save");
+      save.onclick = async ()=>{
+        try{
+          save.disabled = true;
+          save.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Guardando`;
+          const payload = {
+            styleId: selS.value,
+            state: selState.value,     // filtro de origen (opcional)
+            labelId: selLabel.value || "", // filtro de origen (opcional)
+            type: selType.value,       // box12 | box24
+            boxes: Math.max(1, Number(inBoxes.value||1)),
+            dateTime: inDT.value       // YYYY-MM-DDTHH:mm (backend normaliza)
+          };
+          const res = await apiPost("packages", payload, "package");
+          if (!res.ok) throw new Error(res.error||"No se pudo empaquetar");
+          Swal.fire("OK", "Empaquetado registrado", "success");
+          pkgModal.hide();
+          await loadAll();
+        } catch(e){
+          console.error(e); Swal.fire("Error", e.message||"No se pudo guardar", "error");
+        } finally {
+          save.disabled = false; save.textContent = "Guardar";
+        }
+      };
+
+      pkgModal.show();
+    }
+
+    // ===== Modal Transición de estado =====
+    function openTransModal({styleId, fromState, labelId, avail}){
+      transModal = transModal || new bootstrap.Modal(byId("transModal"));
+      const info = byId("trans_info");
+      const qty  = byId("trans_qty");
+      const toSel= byId("trans_to");
+      const ckLbl= byId("trans_consume_labels");
+      const wrapL= byId("trans_label_wrap");
+      const selL = byId("trans_label");
+      const dt   = byId("trans_dt");
+      const outA = byId("trans_avail");
+
+      const style = STYLES.find(s=>String(s.id)===String(styleId));
+      const brand = BRANDS.find(b=>String(b.id)===String(style?.brandId||""));
+
+      info.innerHTML = `<b>${brand?.name||""} – ${style?.name||""}</b><br>Origen: <code>${(fromState||"(cualquiera)").replaceAll("_"," ")}</code> ${labelId?`• etiqueta específica`:``}`;
+      qty.value = Math.max(1, Math.min(Number(avail||1), Number(avail||1)));
+      dt.value  = nowInput();
+      outA.textContent = fmtInt(avail);
+
+      // llenar etiquetas (únicas) del estilo
+      selL.innerHTML = uniqueLabelOptionsForStyle(styleId).map(o=>`<option value="${o.value}">${o.text}</option>`).join("");
+      selL.value = labelId || "";
+
+      // defaults: si destino requiere etiqueta y origen no la tiene -> sugerir consumir etiquetas
+      const defaultTo = "final";
+      toSel.value = defaultTo;
+      const originHasLabel = isLabeledState(fromState);
+      const destHasLabel   = isLabeledState(defaultTo);
+      ckLbl.checked = (destHasLabel && !originHasLabel);
+
+      const toggleLabelWrap = ()=>{
+        wrapL.style.display = ckLbl.checked ? "" : "none";
+      };
+      toggleLabelWrap();
+      ckLbl.onchange = toggleLabelWrap;
+
+      const save = byId("trans_save");
+      save.onclick = async ()=>{
+        try{
+          const n = Math.max(1, Number(qty.value||1));
+          if (n > Number(avail||0)) return Swal.fire("Atención","No hay suficiente stock en el origen.","warning");
+          save.disabled = true;
+          save.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Guardando`;
+
+          const payload = {
+            styleId,
+            fromState: fromState || "",               // "" = cualquier
+            toState: toSel.value,
+            qty: n,
+            labelId: selL.value || "",               // si consumís etiquetas o si las latas ya tenían etiqueta
+            consumeLabels: ckLbl.checked,
+            dateTime: dt.value
+          };
+          const res = await apiPost("cans", payload, "transition_state");
+          if (!res.ok) throw new Error(res.error||"No se pudo mover el stock");
+          Swal.fire("OK", "Transición realizada", "success");
+          transModal.hide();
+          await loadAll();
+        } catch(e){
+          console.error(e); Swal.fire("Error", e.message||"No se pudo guardar", "error");
+        } finally {
+          save.disabled = false; save.textContent = "Guardar";
+        }
+      };
+
+      transModal.show();
+    }
+
+    // ===== Carga inicial =====
     async function loadAll(){
-      // usa apiGet de app.js
-      [BRANDS, STYLES, CANS, PACKS] = await Promise.all([
-        apiGet("brands"),
-        apiGet("styles"),
-        apiGet("cans"),
-        apiGet("packages")
+      [BRANDS, STYLES, CANS, PACKS, LABELS, EMPTYBOXES] = await Promise.all([
+        apiGet("brands"), apiGet("styles"), apiGet("cans"), apiGet("packages"), apiGet("labels"), apiGet("emptyboxes")
       ]);
       loadFilters();
       renderCards();
       renderTables();
     }
 
-    // Eventos
+    // Eventos globales
     document.addEventListener("DOMContentLoaded", ()=>{
-      const b = byId("pk_btn_refresh");
-      b?.addEventListener("click", async ()=>{
-        b.disabled = true;
-        b.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Actualizar`;
-        try { await loadAll(); } finally {
-          b.disabled = false; b.textContent = "Actualizar";
-        }
+      byId("pk_btn_refresh").addEventListener("click", async (ev)=>{
+        const b = ev.currentTarget; b.disabled=true; b.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Actualizar`;
+        try{ await loadAll(); } finally { b.disabled=false; b.textContent="Actualizar"; }
       });
-
-      byId("pk_filter_brand").addEventListener("change", ()=>{
-        renderCards(); renderTables();
-      });
-      byId("pk_filter_style").addEventListener("change", ()=>{
-        renderCards(); renderTables();
-      });
-
+      byId("pk_filter_brand").addEventListener("change", ()=>{ renderCards(); renderTables(); });
+      byId("pk_filter_style").addEventListener("change", ()=>{ renderCards(); renderTables(); });
       byId("pk_cans_csv").addEventListener("click", exportCansCSV);
       byId("pk_packages_csv").addEventListener("click", exportPackagesCSV);
+
+      byId("btnOpenPackage").addEventListener("click", openPkgModal);
     });
 
     // Bootstrap: primera carga
     if (document.readyState === "loading"){
       document.addEventListener("DOMContentLoaded", loadAll);
-    } else {
-      loadAll();
-    }
+    } else { loadAll(); }
   })();
   </script>
 </body>
