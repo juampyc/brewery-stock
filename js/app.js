@@ -9,7 +9,7 @@
     • En config: el modal de Envases usa <select> 'lata' | 'barril'
 */
 
-const API_BASE = "https://script.google.com/macros/s/AKfycbyC5R2_esM9BwXZLRmF2gcqrLU163eBh_rK-8GOb_gzuJkKj4E8gR0g8BhsgsFf-wqi/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbxQENpsg7GZKUZC7yVNhBhRvFvAAVls9mAfOmrT95TIqY7fS3G4uD0iuXoSmRLT2Ro1/exec";
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
 /* =========================
