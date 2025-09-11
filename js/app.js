@@ -206,21 +206,6 @@ function computeTotals(list){
     if (t==="alta") inSum += q; else if (t==="baja") outSum += q;
   }
   return { in: inSum, out: outSum, net: inSum - outSum };
-// HTML escapers
-function _escHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
-function _escAttr(s){ return _escHtml(s).replace(/\n/g," "); }
-// Acorta UUIDs dentro de descripciones (por ejemplo, en "usados:uuid:qty,uuid:qty")
-function formatMovementDescription(desc){
-  const full = String(desc||"");
-  // Reemplaza cualquier UUID v4 por sus últimos 6 caracteres
-  const short = full.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, m => m.slice(-6));
-  // además, si viene "usados:" largo, lo truncamos visualmente a ~120 chars manteniendo título con completo
-  if (short.length > 140){
-    return short.slice(0, 140) + "…";
-  }
-  return short;
-}
-
 }
 function renderMovementsTotals(){
   const list = getFilteredMovements();
@@ -451,7 +436,7 @@ function renderTable(entity, tableId = entity + "Table"){
       pushTD(renderIdShort(row.id)); pushTD(row.brandName || ""); pushTD(row.isCustom ? (row.name||"(custom)") : (row.styleName||""));
       pushTD(row.qty ?? 0); pushTD(row.batch || ""); pushTD(row.provider || ""); pushTD(row.entryDate || ""); pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="movements") {
-      pushTD(renderIdShort(row.id)); pushTD(renderDateLocal(row.dateTime)); pushTD(row.entity || ""); pushTD(row.type || ""); pushTD(row.qty ?? 0); pushTD(renderMovementDesc(row.description || "")); pushTD(renderDateLocal(row.lastModified));
+      pushTD(renderIdShort(row.id)); pushTD(renderDateLocal(row.dateTime)); pushTD(row.entity || ""); pushTD(row.type || ""); pushTD(row.qty ?? 0); const __descFull = row.description || ""; const __descShort = formatMovementDescription(__descFull); pushTD(`<span title="${escAttr(__descFull)}">${__descShort}</span>`); pushTD(renderDateLocal(row.lastModified));
     } else if (entity==="emptyboxes") {
       pushTD(renderIdShort(row.id));
       pushTD(row.type === "box24" ? "x24" : "x12");
@@ -554,16 +539,10 @@ function modalBodyHtml(entity, data={}, brands=[], styles=[]){
     return `
       <div class="mb-2"><label class="form-label fw-semibold">Nombre</label><input id="containerName" class="form-control" value="${data.name||""}"></div>
       <div class="mb-2"><label class="form-label fw-semibold">Tamaño (L)</label><input id="containerSize" type="number" class="form-control" value="${data.sizeLiters||0}"></div>
-      <div class="mb-2"><label class="form-label fw-semibold">Tipo</label>
-        <select id="containerType" class="form-select">
-          <option value="lata" ${String(data.type||"lata")==="lata"?"selected":""}>Lata</option>
-          <option value="barril" ${String(data.type||"lata")==="barril"?"selected":""}>Barril</option>
-        </select>
-      </div>
+      <div class="mb-2"><label class="form-label fw-semibold">Tipo</label><select id="containerType" class="form-select"><option value="lata"${(data.type||"lata")==="lata"?" selected":""}>lata</option><option value="barril"${(data.type||"lata")==="barril"?" selected":""}>barril</option></select></div>
       <div class="mb-2 text-center"><label class="form-label fw-semibold d-block">Color</label>
         <input id="containerColor" type="color" class="form-control form-control-color mx-auto" style="width:3.2rem;height:3.2rem;" value="${data.color||"#000000"}">
-      </div>
-    `;
+      </div>`;
   }
   if (entity==="emptyboxes"){
   return `
@@ -979,6 +958,9 @@ function initEmptyCans(){
       bootstrap.Modal.getInstance(document.getElementById("emptyCansModal"))?.hide();
       Toast.fire({ icon:"success", title:"Latas registradas" });
       await loadEmptyCans();
+
+  // DASHBOARD (index)
+  if (document.getElementById('chart_cans')) { await renderIndexCharts(); }
     } catch(e){
       console.error(e); Swal.fire("Error", e.message || "No se pudo guardar", "error");
     } finally { save.disabled = false; }
@@ -1172,6 +1154,9 @@ async function boot(){
   initEntityModal();
   initEmptyCans();
   await loadEmptyCans();
+
+  // DASHBOARD (index)
+  if (document.getElementById('chart_cans')) { await renderIndexCharts(); }
   if (document.getElementById("brandsTable")) {
     await loadTable("brands","brandsTable");
     await loadTable("styles","stylesTable");
@@ -1190,3 +1175,105 @@ async function boot(){
   await initPackaging();
 }
 if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", boot); } else { boot(); }
+
+
+// === Helpers para truncar/escapar y acortar UUIDs en movimientos ===
+function escHtml(s){ return String(s||"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escAttr(s){ return escHtml(s).replace(/'/g,"&#39;"); }
+function shortUuid(u){ 
+  const m = String(u||"").match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-([0-9a-fA-F]{12})/);
+  if (!m) return u;
+  return "…" + m[1].slice(-6);
+}
+function formatMovementDescription(desc){
+  let s = String(desc||"");
+  // Reemplaza cada UUID v4 por sus últimos 6 caracteres (con prefijo …)
+  s = s.replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, (m)=>"…"+m.slice(-6));
+  // Si es muy largo, lo dejamos; el <span title> mostrará completo
+  return escHtml(s);
+}
+
+
+/* =========================
+   Dashboard (Index) – Charts
+   ========================= */
+async function renderIndexCharts(){
+  const cansEl = document.getElementById("chart_cans");
+  if (!cansEl) return; // not on index
+
+  try{
+    const [styles, cans, emptycans] = await Promise.all([
+      apiGet("styles"),
+      apiGet("cans"),
+      apiGet("emptycans")
+    ]);
+
+    const styleMap = new Map();
+    styles.forEach(s => styleMap.set(String(s.id), s));
+
+    const totals = new Map(); // styleId -> {final:0, pending:0}
+    for (const c of cans){
+      const sid = String(c.styleId||"");
+      const qty = Math.max(0, Number(c.qty||0));
+      const st  = String(c.state||"");
+      if (!totals.has(sid)) totals.set(sid, {final:0, pending:0});
+      if (st === "final") totals.get(sid).final += qty;
+      else totals.get(sid).pending += qty;
+    }
+    // showAlways styles (aunque no tengan stock)
+    styles.forEach(s=>{
+      if (s.showAlways || totals.has(String(s.id))) {
+        if (!totals.has(String(s.id))) totals.set(String(s.id), {final:0, pending:0});
+      }
+    });
+
+    const items = Array.from(totals.entries())
+      .map(([styleId, rec])=>{
+        const s = styleMap.get(styleId) || {};
+        return {
+          key: styleId,
+          brand: s.brandName || "",
+          style: s.name || "",
+          final: rec.final,
+          pending: rec.pending
+        };
+      })
+      .sort((a,b)=> (a.brand+" "+a.style).localeCompare(b.brand+" "+b.style));
+
+    const labels = items.map(x => `${x.brand} – ${x.style}`);
+    const dFinal = items.map(x => x.final);
+    const dPend  = items.map(x => x.pending);
+
+    const makeBar = (ctx, labels, datasets, stacked=false)=> new Chart(ctx, {
+      type: "bar",
+      data: { labels, datasets },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        scales:{
+          x:{ stacked, ticks:{ autoSkip:true, maxTicksLimit:12 }},
+          y:{ stacked, beginAtZero:true, ticks:{ precision:0 } }
+        },
+        plugins:{ legend:{ position:"top" } }
+      }
+    });
+
+    makeBar(cansEl.getContext("2d"), labels, [
+      { label:"Final", data: dFinal },
+      { label:"Pendiente", data: dPend }
+    ], false);
+
+    // Latas vacías (total)
+    const ecTotal = emptycans.reduce((a,x)=> a + (Number(x.qty)||0), 0);
+    const ecEl = document.getElementById("chart_emptycans");
+    if (ecEl){
+      new Chart(ecEl.getContext("2d"), {
+        type:"bar",
+        data:{ labels:["Latas vacías"], datasets:[{ label:"Unidades", data:[ecTotal] }] },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } }
+      });
+    }
+
+  } catch(err){
+    console.error("renderIndexCharts", err);
+  }
+}
