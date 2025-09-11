@@ -98,7 +98,8 @@ const CAN_STATES = [
 ];
 
 async function loadProductionData(){
-  const [styles, cans] = await Promise.all([apiGet("styles"), apiGet("cans_stock")]);
+  // Cambiamos entity "cans_stock" por "cans" porque el backend no reconoce "cans_stock" como entidad.
+  const [styles, cans] = await Promise.all([apiGet("styles"), apiGet("cans")]);
   // agrupar por style
   const byStyle = new Map();
   for (const s of styles) {
@@ -360,8 +361,9 @@ function containersModalBody(data={}){
    ========================= */
 async function renderIndex(){
   try{
+    // Cambiamos entity "cans_stock" por "cans" porque el backend no reconoce "cans_stock" como entidad.
     const [styles, cans, emptycans, labels] = await Promise.all([
-      apiGet("styles"), apiGet("cans_stock"), apiGet("emptycans"), apiGet("labels")
+      apiGet("styles"), apiGet("cans"), apiGet("emptycans"), apiGet("labels")
     ]);
     const styleMap = new Map(styles.map(s=>[String(s.id), s]));
     // sum stock por estilo (todas las variantes)
@@ -387,17 +389,7 @@ async function renderIndex(){
 
     // Chart.js
     if (window.Chart){
-      const ctxLabels = document.getElementById("idx_chart_labels");
-      if (ctxLabels){
-        new Chart(ctxLabels, {
-          type: "bar",
-          data: {
-            labels: labelsNames,
-            datasets: [{ label:"Etiquetas disponibles", data: labels.map(l=>l.qty||0) }]
-          },
-          options: { responsive:true, plugins:{ legend:{ display:false }}, scales:{ y:{ beginAtZero:true } } }
-        });
-      }
+      // Gráfico de stock de latas por estilo
       const ctx = document.getElementById("idx_chart_styles");
       if (ctx){
         new Chart(ctx, {
@@ -405,6 +397,35 @@ async function renderIndex(){
           data: {
             labels: labelsNames,
             datasets: [{ label:"Stock de latas por estilo", data: labelsQtys }]
+          },
+          options: { responsive:true, plugins:{ legend:{ display:false }}, scales:{ y:{ beginAtZero:true } } }
+        });
+      }
+      // Segundo gráfico: etiquetas disponibles por estilo (suma de etiquetas no personalizadas por estilo)
+      const ctxLabels = document.getElementById("idx_chart_labels");
+      if (ctxLabels){
+        // Agrupamos cantidad de etiquetas por styleId (no custom)
+        const labelTotals = new Map(styles.map(s=>[String(s.id), 0]));
+        for (const lbl of labels){
+          if (!lbl.isCustom && labelTotals.has(String(lbl.styleId))){
+            labelTotals.set(String(lbl.styleId), (labelTotals.get(String(lbl.styleId))||0) + Number(lbl.qty||0));
+          }
+        }
+        const labelsStyleNames = [];
+        const labelsStyleQtys = [];
+        for (const s of styles){
+          const totalLbl = labelTotals.get(String(s.id)) || 0;
+          // Mostramos estilos que se muestran siempre o que tienen etiquetas
+          if (s.showAlways || totalLbl > 0){
+            labelsStyleNames.push(`${s.brandName}-${s.name}`);
+            labelsStyleQtys.push(totalLbl);
+          }
+        }
+        new Chart(ctxLabels, {
+          type: "bar",
+          data: {
+            labels: labelsStyleNames,
+            datasets: [{ label:"Etiquetas disponibles", data: labelsStyleQtys }]
           },
           options: { responsive:true, plugins:{ legend:{ display:false }}, scales:{ y:{ beginAtZero:true } } }
         });

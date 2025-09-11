@@ -1,4 +1,4 @@
-(() => {
+(function () {
   const V = window.APP_VER || String(Date.now());
   const addCSS = (href) => {
     const l = document.createElement("link");
@@ -12,6 +12,7 @@
     s.defer = true;
     document.body.appendChild(s);
   };
+  // Cargamos CSS y JS desde la raíz porque no hay carpetas css/ ni js/.
   addCSS("./styles.css");
   addJS("./app.js");
 })();
