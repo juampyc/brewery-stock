@@ -387,6 +387,17 @@ async function renderIndex(){
 
     // Chart.js
     if (window.Chart){
+      const ctxLabels = document.getElementById("idx_chart_labels");
+      if (ctxLabels){
+        new Chart(ctxLabels, {
+          type: "bar",
+          data: {
+            labels: labelsNames,
+            datasets: [{ label:"Etiquetas disponibles", data: labels.map(l=>l.qty||0) }]
+          },
+          options: { responsive:true, plugins:{ legend:{ display:false }}, scales:{ y:{ beginAtZero:true } } }
+        });
+      }
       const ctx = document.getElementById("idx_chart_styles");
       if (ctx){
         new Chart(ctx, {

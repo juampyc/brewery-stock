@@ -1,4 +1,4 @@
-(function () {
+(() => {
   const V = window.APP_VER || String(Date.now());
   const addCSS = (href) => {
     const l = document.createElement("link");
@@ -12,6 +12,6 @@
     s.defer = true;
     document.body.appendChild(s);
   };
-  addCSS("./css/styles.css");
-  addJS("./js/app.js");
+  addCSS("./styles.css");
+  addJS("./app.js");
 })();
