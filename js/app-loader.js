@@ -1,4 +1,3 @@
-// js/app-loader.js
 (function () {
   const V = window.APP_VER || String(Date.now());
   const addCSS = (href) => {
@@ -13,8 +12,6 @@
     s.defer = true;
     document.body.appendChild(s);
   };
-
   addCSS("./css/styles.css");
-  addJS("./js/theme-checker.js"); // cache-busting para el theme-checker
-  addJS("./js/app.js");           // tu app
+  addJS("./js/app.js");
 })();
