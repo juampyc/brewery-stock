@@ -1,13 +1,12 @@
 // js/theme-checker.js
 (() => {
-  const SHOW_BADGE = false; // poné true si querés ver un badge en pantalla
+  const SHOW_BADGE = false;
   const doc = document.documentElement;
 
   function applyThemeClass() {
     const theme = doc.getAttribute('data-theme') || 'light';
     document.body.classList.remove('theme-light', 'theme-dark');
     document.body.classList.add(`theme-${theme}`);
-    console.log(`[theme-checker] theme: ${theme}`);
     if (SHOW_BADGE) showBadge(theme);
   }
 

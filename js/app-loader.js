@@ -12,7 +12,7 @@
     s.defer = true;
     document.body.appendChild(s);
   };
-  // Cargamos CSS y JS desde la raíz porque no hay carpetas css/ ni js/.
   addCSS("./styles.css");
+  addJS("./theme-checker.js");
   addJS("./app.js");
 })();
