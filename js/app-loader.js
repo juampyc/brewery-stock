@@ -13,6 +13,6 @@
     document.body.appendChild(s);
   };
   // Cargamos CSS y JS desde la raíz porque no hay carpetas css/ ni js/.
-  addCSS("./styles.css");
-  addJS("./app.js");
+  addCSS("./css/styles.css");
+  addJS("./js/app.js");
 })();
