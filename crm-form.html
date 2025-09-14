@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="estilo.css">
+  </head>
+  <body>
+    <div class="container">
+      <h1>CRM para tu Cervecería</h1>
+      <form id="formulario-crm" onsubmit="handleFormSubmit(this)">
+        <div class="input-group">
+          <label for="nombre">Nombre del Cliente</label>
+          <input type="text" id="nombre" name="nombre" required>
+        </div>
+        <div class="input-group">
+          <label for="telefono">Teléfono</label>
+          <input type="tel" id="telefono" name="telefono">
+        </div>
+        <div class="input-group checkbox-group">
+          <input type="checkbox" id="whatsapp" name="whatsapp">
+          <label for="whatsapp">Mismo WhatsApp que Teléfono</label>
+        </div>
+        <div class="input-group">
+          <label for="direccion">Dirección</label>
+          <input type="text" id="direccion" name="direccion" placeholder="Ej: Av. Rivadavia 1234, Ramos Mejía">
+          <div id="map-link"></div>
+        </div>
+        <div class="input-group">
+          <label for="tipo_cliente">Tipo de Cliente</label>
+          <select id="tipo_cliente" name="tipo_cliente">
+            <option value="Tradicional">Tradicional (almacén, kiosco)</option>
+            <option value="On Premise">On Premise (bar)</option>
+            <option value="Distribucion">Distribución</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="motivo_no_compra">Motivo por el que no compra</label>
+          <select id="motivo_no_compra" name="motivo_no_compra">
+            <option value=""></option>
+            <option value="Precio">Precio</option>
+            <option value="Producto">Producto</option>
+            <option value="Servicio">Servicio</option>
+            <option value="No conoce la marca">No conoce la marca</option>
+            <option value="Continuidad">Continuidad</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="comentarios">Comentarios</label>
+          <textarea id="comentarios" name="comentarios" rows="3"></textarea>
+        </div>
+        <button type="submit">Guardar Cliente</button>
+        <div id="status-message"></div>
+      </form>
+    </div>
+    <script>
+      // Enviar datos al Apps Script
+      function handleFormSubmit(formObject) {
+        var formData = new FormData(formObject);
+        var data = {};
+        for (var [key, value] of formData.entries()) {
+          data[key] = value;
+        }
+        
+        // Agregar timestamp y manejar el campo de WhatsApp
+        var now = new Date();
+        data.timestamp = now.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+        if (data.whatsapp === 'on') {
+          data.whatsapp = data.telefono;
+        } else {
+          data.whatsapp = '';
+        }
+
+        google.script.run
+          .withSuccessHandler(onSuccess)
+          .withFailureHandler(onFailure)
+          .processForm(data);
+        
+        document.getElementById('status-message').innerHTML = 'Enviando...';
+      }
+
+      function onSuccess(response) {
+        document.getElementById('status-message').innerHTML = '<span class="success">' + response + '</span>';
+        document.getElementById('formulario-crm').reset();
+      }
+
+      function onFailure(error) {
+        document.getElementById('status-message').innerHTML = '<span class="error">Error: ' + error.message + '</span>';
+      }
+      
+      // Manejar la integración con Google Maps
+      document.getElementById('direccion').addEventListener('input', function() {
+        var address = this.value;
+        var mapLinkDiv = document.getElementById('map-link');
+        if (address.length > 5) {
+          var mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+          mapLinkDiv.innerHTML = '<a href="' + mapUrl + '" target="_blank" class="map-link">Abrir en Google Maps</a>';
+        } else {
+          mapLinkDiv.innerHTML = '';
+        }
+      });
+    </script>
+  </body>
+</html>
