@@ -1,70 +1,203 @@
-/* v3 - Insumos + Producción
- - Nueva página "insumos.html" con tabs Etiquetas/Latas
- - Formateo Última actualización AR: YYYY-MM-DD HH:MM (America/Argentina/Buenos_Aires)
- - Latas: sólo ingresos positivos, editar actualiza movimiento 'emptycans/add' (qty y descripción con emptyId/lot/provider)
- - Producción: selector de etiqueta muestra "Marca - Estilo/Custom - stock qty"; estado 'final' si etiquetada y pasteurizada
-*/
-const API_BASE = "https://script.google.com/macros/s/AKfycbzzITfZwQNYadZz05moOfJ-ZIzXtF6O0VdV2L4nI7cKohIuf6pXols1JQI2idAPbLP9/exec";
-const TZ_AR = "America/Argentina/Buenos_Aires";
 
-var Toast = window.Toast || Swal.mixin({toast:true,position:"top-end",showConfirmButton:false,timer:1700,timerProgressBar:true,didOpen:t=>{t.addEventListener("mouseenter",Swal.stopTimer);t.addEventListener("mouseleave",Swal.resumeTimer);}});
-window.Toast = Toast;
-function lockBtn(btn){if(!btn)return()=>{};const prev={d:btn.disabled,h:btn.innerHTML};btn.disabled=true;btn.innerHTML=`<span class="spinner-border spinner-border-sm"></span> ${btn.textContent||"Procesando…"}`;return()=>{btn.disabled=prev.d;btn.innerHTML=prev.h};}
-async function withBtnLock(btn,fn){const u=lockBtn(btn);try{return await fn();}finally{u();}}
-function confirmDelete(text="¿Eliminar este registro?"){return Swal.fire({icon:"warning",title:"Confirmar",text,showCancelButton:true,confirmButtonText:"Eliminar",cancelButtonText:"Cancelar"});}
+/* Castelo CRUD - App JS (no Production) - v5 */
+(function(){ 'use strict';
+  const API_BASE = 'https://script.google.com/macros/s/AKfycbzzITfZwQNYadZz05moOfJ-ZIzXtF6O0VdV2L4nI7cKohIuf6pXols1JQI2idAPbLP9/exec';
+  const TZ_AR = 'America/Argentina/Buenos_Aires';
 
-async function apiGet(entity,action="getAll",extra={}){const p=new URLSearchParams({entity,action,...extra});const r=await fetch(`${API_BASE}?${p.toString()}`);if(!r.ok)throw new Error(`GET ${entity}/${action} ${r.status}`);return r.json();}
-async function apiPost(entity,data,action){const url=action?`${API_BASE}?entity=${entity}&action=${action}`:`${API_BASE}?entity=${entity}`;const r=await fetch(url,{method:"POST",body:JSON.stringify(data||{})});const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||`POST ${entity}/${action||""} ${r.status}`);return j;}
-async function apiDelete(entity,id){return apiPost(entity,{id},"delete");}
+  var Toast = window.Toast || Swal.mixin({
+    toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, timerProgressBar: true,
+    didOpen: (t) => { t.addEventListener('mouseenter', Swal.stopTimer); t.addEventListener('mouseleave', Swal.resumeTimer); }
+  });
+  window.Toast = Toast;
 
-function initTheme(){const sw=document.getElementById("themeSwitch");const saved=localStorage.getItem("theme")||"light";document.documentElement.setAttribute("data-theme",saved);if(sw){sw.checked=saved==="dark";sw.addEventListener("change",()=>{const t=sw.checked?"dark":"light";document.documentElement.setAttribute("data-theme",t);localStorage.setItem("theme",t);});}}
-function renderIdShort(id){return id?id.slice(0,8):""}
-function renderColorSquare(c){return c?`<span class="color-box" style="background:${c}"></span>`:""}
-function formatAR(iso){if(!iso)return"";try{const d=new Date(iso);const s=d.toLocaleString('sv-SE',{timeZone:TZ_AR,hour12:false});return s.slice(0,16);}catch(e){return iso;}}
-function renderDateLocal(s){return formatAR(s);}
-const nowInputDateTime=()=>{const d=new Date();const s=d.toLocaleString('sv-SE',{timeZone:TZ_AR,hour12:false});return s.slice(0,16).replace(" ","T");}
-function fromDatetimeLocalValue(v){if(!v)return null;return v.replace("T"," ")+":00";}
-function truncateIdsInDesc(txt){if(!txt)return"";let s=String(txt);s=s.replace(/\b(labelId|styleId|brandId|emptyId)=([0-9a-f]{8})[0-9a-f\-]*/gi,(_,k,p)=>`${k}=${p}`);s=s.replace(/usados:([0-9a-f\-:,]+)/gi,m=>{const list=m.split(":")[1]||"";const mapped=list.split(",").map(p=>{const[a,q]=p.split(":");return `${(a||"").slice(0,8)}:${q||""}`}).join(",");return`usados:${mapped}`});return s;}
+  const $ = (s, r) => (r||document).querySelector(s);
+  const qsId = (id) => document.getElementById(id);
+  const shortId = (id) => id ? String(id).slice(0,8) : '';
+  const colorDot = (c) => c ? '<span class="d-inline-block rounded-circle border" style="width:14px;height:14px;background:'+c+'"></span>' : '';
 
-/* ===== Movements ===== */
-function renderMovementsTable(list){const tb=document.querySelector("#movementsTable tbody");if(!tb)return;tb.innerHTML="";for(const row of list){const tr=document.createElement("tr");tr.innerHTML=`<td>${renderIdShort(row.id)}</td><td>${renderDateLocal(row.dateTime)}</td><td>${row.entity||""}</td><td>${row.type||""}</td><td>${row.qty??0}</td><td>${truncateIdsInDesc(row.description||"")}</td><td>${renderDateLocal(row.lastModified)}</td>`;tb.appendChild(tr);}}
-async function bootMovements(){try{const rows=await apiGet("movements");renderMovementsTable(rows);}catch(e){console.error(e);}}
+  async function apiGet(entity, action='getAll', params={}) {
+    const sp = new URLSearchParams(Object.entries(params));
+    const url = API_BASE + '?entity=' + encodeURIComponent(entity) + '&action=' + encodeURIComponent(action) + (sp.toString()?('&'+sp.toString()):'');
+    const r = await fetch(url); if(!r.ok) throw new Error('GET '+entity+'/'+action+' '+r.status);
+    const j = await r.json(); if(j && j.error) throw new Error(j.error);
+    return j && (j.data||j.rows||j.list||j);
+  }
+  async function apiPost(entity, data, action='create') {
+    const url = API_BASE + '?entity=' + encodeURIComponent(entity) + '&action=' + encodeURIComponent(action);
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data||{}) });
+    if(!r.ok) throw new Error('POST '+entity+'/'+action+' '+r.status);
+    const j = await r.json(); if(j && j.error) throw new Error(j.error);
+    return j && (j.data||j);
+  }
+  const apiDelete = (entity, id) => apiPost(entity, { id }, 'delete');
+  const fmtAR = (iso) => { try{const d=new Date(iso); return d.toLocaleString('es-AR',{timeZone:TZ_AR,hour12:false}).slice(0,16);}catch{return iso||'';} };
 
+  // CONFIG: Brands
+  async function loadBrands(){ const rows=await apiGet('brands'); const tb=$('#brandsTable tbody'); if(!tb) return;
+    tb.innerHTML=''; (rows||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`
+      <td>${shortId(r.id)}</td><td>${r.name||''}</td><td>${colorDot(r.color||'')}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-secondary me-1" data-act="edit" data-id="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-act="del" data-id="${r.id}">Eliminar</button>
+      </td>`; tb.appendChild(tr); });
+  }
+  async function addBrand(){ const { value: formValues } = await Swal.fire({
+      title:'Agregar marca', html:`
+      <div class="mb-2 text-start"><label class="form-label">Nombre</label><input id="sw_name" class="form-control"></div>
+      <div class="mb-2 text-start"><label class="form-label">Color</label><input id="sw_color" type="color" class="form-control form-control-color" value="#000000"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ name:$('#sw_name').value.trim(), color:$('#sw_color').value })
+  }); if(!formValues||!formValues.name) return; await apiPost('brands',formValues,'create'); Toast.fire({icon:'success',title:'Marca creada'}); await loadBrands(); }
+  async function editBrand(id){ const d=(await apiGet('brands','get',{id}))||{}; const { value: formValues } = await Swal.fire({
+      title:'Editar marca', html:`
+      <div class="mb-2 text-start"><label class="form-label">Nombre</label><input id="sw_name" class="form-control" value="${d.name||''}"></div>
+      <div class="mb-2 text-start"><label class="form-label">Color</label><input id="sw_color" type="color" class="form-control form-control-color" value="${d.color||'#000000'}"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ id, name:$('#sw_name').value.trim(), color:$('#sw_color').value })
+  }); if(!formValues||!formValues.name) return; await apiPost('brands',formValues,'update'); Toast.fire({icon:'success',title:'Marca actualizada'}); await loadBrands(); }
+  async function deleteBrand(id){ const ok=await Swal.fire({icon:'warning',title:'Confirmar',text:'¿Eliminar la marca?',showCancelButton:true,confirmButtonText:'Eliminar',cancelButtonText:'Cancelar'}).then(r=>r.isConfirmed); if(!ok) return; await apiDelete('brands',id); Toast.fire({icon:'success',title:'Eliminado'}); await loadBrands(); }
+  function bindBrands(){ const t=$('#brandsTable'); if(!t) return;
+    t.addEventListener('click',e=>{ const b=e.target.closest('button[data-act]'); if(!b) return; const id=b.getAttribute('data-id'); const a=b.getAttribute('data-act'); if(a==='edit') editBrand(id); if(a==='del') deleteBrand(id); });
+    const add=qsId('btnAddBrand'); if(add) add.addEventListener('click',()=>addBrand());
+  }
 
-/* ===== Config (keep from v2, not repeated here for brevity) ===== */
-async function bootConfig(){/* reuse from previous build by requesting data */const[brands,containers,styles]=await Promise.all([apiGet("brands"),apiGet("containers"),apiGet("styles")]);const brandMap=new Map(brands.map(b=>[String(b.id),b]));function renderBrands(){const tb=document.querySelector("#brandsTable tbody");if(!tb)return;tb.innerHTML="";for(const b of brands){const tr=document.createElement("tr");tr.innerHTML=`<td>${renderIdShort(b.id)}</td><td>${b.name}</td><td>${renderColorSquare(b.color)}</td><td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary me-1" data-id="${b.id}" data-ent="brands">Editar</button><button class="btn btn-sm btn-danger" data-id="${b.id}" data-ent="brands">Eliminar</button></td>`;tb.appendChild(tr);}tb.addEventListener("click",async e=>{const btn=e.target.closest("button");if(!btn)return;const id=btn.dataset.id,ent=btn.dataset.ent;if(btn.classList.contains("btn-danger")){await withBtnLock(btn,async()=>{const labels=await apiGet("labels");const stylesCur=await apiGet("styles");const styleIds=new Set(stylesCur.filter(s=>String(s.brandId)===String(id)).map(s=>String(s.id)));const blocked=labels.some(l=>String(l.brandId)===String(id)||styleIds.has(String(l.styleId)));if(blocked){Swal.fire("No permitido","No se puede eliminar la marca: tiene etiquetas asociadas.","info");return;}const ok=await confirmDelete("¿Eliminar la marca seleccionada?");if(!ok.isConfirmed)return;await apiDelete(ent,id);Toast.fire({icon:"success",title:"Eliminado"});location.reload();});}else{await withBtnLock(btn,async()=>{const b=brands.find(x=>String(x.id)===String(id));const html=`<div class="mb-2"><label class="form-label fw-semibold">Nombre</label><input id="brandName" class="form-control" value="${b.name||""}"></div><div class="mb-2 text-center"><label class="form-label fw-semibold d-block">Color</label><input id="brandColor" type="color" class="form-control form-control-color mx-auto" value="${b.color||"#000000"}"></div>`;const{value,isConfirmed}=await Swal.fire({title:"Editar marca",html,showCancelButton:true,preConfirm:()=>({name:document.getElementById("brandName").value,color:document.getElementById("brandColor").value})});if(!isConfirmed)return;await apiPost("brands",{id,...value},"update");Toast.fire({icon:"success",title:"Guardado"});location.reload();});}});}
-function renderContainers(){const tb=document.querySelector("#containersTable tbody");if(!tb)return;tb.innerHTML="";for(const c of containers){const tr=document.createElement("tr");tr.innerHTML=`<td>${renderIdShort(c.id)}</td><td>${c.name}</td><td>${c.sizeLiters||""}</td><td>${c.type||""}</td><td>${renderColorSquare(c.color)}</td><td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary me-1" data-id="${c.id}" data-ent="containers">Editar</button><button class="btn btn-sm btn-danger" data-id="${c.id}" data-ent="containers">Eliminar</button></td>`;tb.appendChild(tr);}tb.addEventListener("click",async e=>{const btn=e.target.closest("button");if(!btn)return;const id=btn.dataset.id,ent=btn.dataset.ent;if(btn.classList.contains("btn-danger")){await withBtnLock(btn,async()=>{const ok=await confirmDelete("¿Eliminar el envase seleccionado?");if(!ok.isConfirmed)return;await apiDelete(ent,id);Toast.fire({icon:"success",title:"Eliminado"});location.reload();});}else{await withBtnLock(btn,async()=>{const c=containers.find(x=>String(x.id)===String(id));const html=`<div class="mb-2"><label class="form-label fw-semibold">Nombre</label><input id="containerName" class="form-control" value="${c.name||""}"></div><div class="mb-2"><label class="form-label fw-semibold">Tamaño (L)</label><input id="containerSize" type="number" class="form-control" value="${c.sizeLiters||0}"></div><div class="mb-2"><label class="form-label fw-semibold">Tipo</label><select id="containerType" class="form-select"><option value="lata" selected>Lata</option></select></div><div class="mb-2 text-center"><label class="form-label fw-semibold d-block">Color</label><input id="containerColor" type="color" class="form-control form-control-color mx-auto" value="${c.color||"#000000"}"></div>`;const{value,isConfirmed}=await Swal.fire({title:"Editar envase",html,showCancelButton:true,preConfirm:()=>({name:document.getElementById("containerName").value,sizeLiters:Number(document.getElementById("containerSize").value||0),type:document.getElementById("containerType").value,color:document.getElementById("containerColor").value})});if(!isConfirmed)return;await apiPost("containers",{id,...value},"update");Toast.fire({icon:"success",title:"Guardado"});location.reload();});}});}
-function renderStyles(){const tb=document.querySelector("#stylesTable tbody");if(!tb)return;tb.innerHTML="";for(const s of styles){const tr=document.createElement("tr");tr.innerHTML=`<td>${renderIdShort(s.id)}</td><td>${brandMap.get(String(s.brandId))?.name||""}</td><td>${s.name}</td><td>${renderColorSquare(s.color)}</td><td>${s.showAlways?"Sí":"No"}</td><td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary me-1" data-id="${s.id}" data-ent="styles">Editar</button><button class="btn btn-sm btn-danger" data-id="${s.id}" data-ent="styles">Eliminar</button></td>`;tb.appendChild(tr);}}
-renderBrands();renderContainers();renderStyles();}
+  // CONFIG: Containers
+  async function loadContainers(){ const rows=await apiGet('containers'); const tb=$('#containersTable tbody'); if(!tb) return;
+    tb.innerHTML=''; (rows||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`
+      <td>${shortId(r.id)}</td><td>${r.name||''}</td><td>${r.size_l||''}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-secondary me-1" data-act="edit" data-id="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-act="del" data-id="${r.id}">Eliminar</button>
+      </td>`; tb.appendChild(tr); });
+  }
+  async function addContainer(){ const { value: formValues } = await Swal.fire({
+      title:'Agregar envase', html:`
+      <div class="mb-2 text-start"><label class="form-label">Nombre</label><input id="sw_name" class="form-control" placeholder="Lata 473cc"></div>
+      <div class="mb-2 text-start"><label class="form-label">Tamaño (L)</label><input id="sw_size" type="number" step="0.001" class="form-control" value="0.473"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ name:$('#sw_name').value.trim(), size_l: parseFloat($('#sw_size').value)||0 })
+  }); if(!formValues||!formValues.name) return; await apiPost('containers',formValues,'create'); Toast.fire({icon:'success',title:'Envase creado'}); await loadContainers(); }
+  async function editContainer(id){ const d=(await apiGet('containers','get',{id}))||{}; const { value: formValues } = await Swal.fire({
+      title:'Editar envase', html:`
+      <div class="mb-2 text-start"><label class="form-label">Nombre</label><input id="sw_name" class="form-control" value="${d.name||''}"></div>
+      <div class="mb-2 text-start"><label class="form-label">Tamaño (L)</label><input id="sw_size" type="number" step="0.001" class="form-control" value="${d.size_l||0}"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ id, name:$('#sw_name').value.trim(), size_l: parseFloat($('#sw_size').value)||0 })
+  }); if(!formValues||!formValues.name) return; await apiPost('containers',formValues,'update'); Toast.fire({icon:'success',title:'Envase actualizado'}); await loadContainers(); }
+  async function deleteContainer(id){ const ok=await Swal.fire({icon:'warning',title:'Confirmar',text:'¿Eliminar el envase?',showCancelButton:true,confirmButtonText:'Eliminar',cancelButtonText:'Cancelar'}).then(r=>r.isConfirmed); if(!ok) return; await apiDelete('containers',id); Toast.fire({icon:'success',title:'Eliminado'}); await loadContainers(); }
+  function bindContainers(){ const t=$('#containersTable'); if(!t) return;
+    t.addEventListener('click',e=>{ const b=e.target.closest('button[data-act]'); if(!b) return; const id=b.getAttribute('data-id'); const a=b.getAttribute('data-act'); if(a==='edit') editContainer(id); if(a==='del') deleteContainer(id); });
+    const add=qsId('btnAddContainer'); if(add) add.addEventListener('click',()=>addContainer());
+  }
 
-/* ===== Etiquetas (igual que v2 con formato fecha AR) + Latas (nuevo) ===== */
-function labelModalBody(brands,styles,d={}){const brandOpts=brands.map(b=>`<option value="${b.id}" ${String(b.id)===String(d.brandId)?"selected":""}>${b.name}</option>`).join("");const styleOpts=styles.map(s=>`<option value="${s.id}" ${String(s.id)===String(d.styleId)?"selected":""}>${s.name}</option>`).join("");return`<div class="mb-2"><label class="form-label fw-semibold">Marca</label><select id="lblBrandId" class="form-select" required>${brandOpts}</select></div><div class="form-check mt-1 mb-2"><input class="form-check-input" type="checkbox" id="lblIsCustom" ${d.isCustom?"checked":""}><label class="form-check-label fw-semibold" for="lblIsCustom">Es personalizada</label></div><div class="row g-2"><div class="col-sm-6"><label class="form-label fw-semibold">Estilo</label><select id="lblStyleId" class="form-select">${styleOpts}</select></div><div class="col-sm-6"><label class="form-label fw-semibold">Nombre (personalizado)</label><input id="lblName" class="form-control" value="${d.name||""}" placeholder="Solo si es personalizada"></div></div><div class="row g-2 mt-1"><div class="col-sm-3"><label class="form-label fw-semibold">Cantidad</label><input id="lblQty" type="number" class="form-control" value="${d.qty||0}" min="0"></div><div class="col-sm-3"><label class="form-label fw-semibold">Fecha/hora</label><input id="lblDt" type="datetime-local" class="form-control" value="${nowInputDateTime()}"></div><div class="col-sm-3"><label class="form-label fw-semibold">Proveedor</label><input id="lblProvider" class="form-control" value="${d.provider||""}"></div><div class="col-sm-3"><label class="form-label fw-semibold">Lote</label><input id="lblLot" class="form-control" value="${d.lot||""}"></div></div>`}
-function hookLabelModalToggle(){const brandSel=document.getElementById("lblBrandId");const isCustomCb=document.getElementById("lblIsCustom");const styleSel=document.getElementById("lblStyleId");const nameInp=document.getElementById("lblName");function apply(){const hasBrand=!!brandSel.value;isCustomCb.disabled=!hasBrand;if(!hasBrand){styleSel.disabled=true;nameInp.disabled=true;return;}const custom=isCustomCb.checked;styleSel.disabled=custom;nameInp.disabled=!custom;}brandSel.addEventListener("change",apply);isCustomCb.addEventListener("change",apply);apply();}
-function collectLabelPayload(){const brandId=document.getElementById("lblBrandId").value;if(!brandId){Swal.showValidationMessage("Primero seleccione la Marca.");return null;}const custom=document.getElementById("lblIsCustom").checked;const styleSel=document.getElementById("lblStyleId");const nameInp=document.getElementById("lblName");if(!custom && !styleSel.value){Swal.showValidationMessage("Seleccione un Estilo (o marque 'Es personalizada').");return null;}if(custom){/* nombre opcional */}else{ if(nameInp.value){Swal.showValidationMessage("Nombre personalizado solo si es 'Es personalizada'.");return null;} }const qty=Number(document.getElementById("lblQty").value||0);if(qty<0){Swal.showValidationMessage("Cantidad inválida.");return null;}return{brandId,styleId:custom?"":styleSel.value,name:custom?nameInp.value:"",qty,dateTime:fromDatetimeLocalValue(document.getElementById("lblDt").value),provider:document.getElementById("lblProvider").value,lot:document.getElementById("lblLot").value,isCustom:custom};}
+  // CONFIG: Styles
+  async function loadStyles(){ const rows=await apiGet('styles'); const tb=$('#stylesTable tbody'); if(!tb) return;
+    tb.innerHTML=''; (rows||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`
+      <td>${shortId(r.id)}</td><td>${r.brand_name||r.brand||''}</td><td>${r.name||''}</td><td>${colorDot(r.color||'')}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-secondary me-1" data-act="edit" data-id="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-act="del" data-id="${r.id}">Eliminar</button>
+      </td>`; tb.appendChild(tr); });
+  }
+  async function addStyle(){ const brands=await apiGet('brands'); const brandOpts=(brands||[]).map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    const { value: formValues } = await Swal.fire({
+      title:'Agregar estilo', html:`
+      <div class="mb-2 text-start"><label class="form-label">Marca</label><select id="sw_brand" class="form-select">${brandOpts}</select></div>
+      <div class="mb-2 text-start"><label class="form-label">Nombre del estilo</label><input id="sw_name" class="form-control" placeholder="IPA, Kölsch, etc."></div>
+      <div class="mb-2 text-start"><label class="form-label">Color</label><input id="sw_color" type="color" class="form-control form-control-color" value="#000000"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ brand_id:$('#sw_brand').value, name:$('#sw_name').value.trim(), color:$('#sw_color').value })
+    }); if(!formValues||!formValues.name) return; await apiPost('styles',formValues,'create'); Toast.fire({icon:'success',title:'Estilo creado'}); await loadStyles(); }
+  async function editStyle(id){ const d=(await apiGet('styles','get',{id}))||{}; const brands=await apiGet('brands');
+    const brandOpts=(brands||[]).map(b=>`<option value="${b.id}" ${(str=>str)(String(b.id)===String(d.brand_id)?'selected':'')}>${b.name}</option>`).join('');
+    const { value: formValues } = await Swal.fire({
+      title:'Editar estilo', html:`
+        <div class="mb-2 text-start"><label class="form-label">Marca</label><select id="sw_brand" class="form-select">${brandOpts}</select></div>
+        <div class="mb-2 text-start"><label class="form-label">Nombre del estilo</label><input id="sw_name" class="form-control" value="${d.name||''}"></div>
+        <div class="mb-2 text-start"><label class="form-label">Color</label><input id="sw_color" type="color" class="form-control form-control-color" value="${d.color||'#000000'}"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ id, brand_id:$('#sw_brand').value, name:$('#sw_name').value.trim(), color:$('#sw_color').value })
+    }); if(!formValues||!formValues.name) return; await apiPost('styles',formValues,'update'); Toast.fire({icon:'success',title:'Estilo actualizado'}); await loadStyles(); }
+  async function deleteStyle(id){ const ok=await Swal.fire({icon:'warning',title:'Confirmar',text:'¿Eliminar el estilo?',showCancelButton:true,confirmButtonText:'Eliminar',cancelButtonText:'Cancelar'}).then(r=>r.isConfirmed); if(!ok) return; await apiDelete('styles',id); Toast.fire({icon:'success',title:'Eliminado'}); await loadStyles(); }
+  function bindStyles(){ const t=$('#stylesTable'); if(!t) return;
+    t.addEventListener('click',e=>{ const b=e.target.closest('button[data-act]'); if(!b) return; const id=b.getAttribute('data-id'); const a=b.getAttribute('data-act'); if(a==='edit') editStyle(id); if(a==='del') deleteStyle(id); });
+    const add=qsId('btnAddStyle'); if(add) add.addEventListener('click',()=>addStyle());
+  }
 
-function emptyCansModalBody(d={}){return`<div class="row g-2"><div class="col-sm-4"><label class="form-label fw-semibold">Cantidad</label><input id="ec_qty" type="number" class="form-control" value="${d.qty??24}" min="1"></div><div class="col-sm-4"><label class="form-label fw-semibold">Fecha/hora</label><input id="ec_dt" type="datetime-local" class="form-control" value="${nowInputDateTime()}"></div></div><div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label fw-semibold">Proveedor (opcional)</label><input id="ec_provider" class="form-control" value="${d.provider||""}"></div><div class="col-sm-6"><label class="form-label fw-semibold">Lote (opcional)</label><input id="ec_lot" class="form-control" value="${d.lot||""}"></div></div>`}
-function collectEmptyCansPayload(){const qty=Math.max(1,Number(document.getElementById("ec_qty").value||0));const dateTime=fromDatetimeLocalValue(document.getElementById("ec_dt").value);const provider=document.getElementById("ec_provider").value||"";const lot=document.getElementById("ec_lot").value||"";return{qty,dateTime,provider,lot};}
+  // INSUMOS: Labels
+  async function loadLabels(){ const list=await apiGet('labels'); const tb=$('#labelsTable tbody'); if(tb){ tb.innerHTML=''; (list||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`
+        <td>${shortId(r.id)}</td><td>${r.brand_name||r.brand||''}</td><td>${r.style_name||r.style||''}</td><td class="text-end">${Number(r.qty||0)}</td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-secondary me-1" data-act="edit" data-id="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-act="del" data-id="${r.id}">Eliminar</button></td>`; tb.appendChild(tr); }); }
+    const tot=(list||[]).reduce((a,x)=>a+Number(x.qty||0),0); if(qsId('lbl_total_units')) qsId('lbl_total_units').textContent=tot;
+    if(qsId('lbl_total_items')) qsId('lbl_total_items').textContent=(list||[]).length;
+    if(qsId('idx_total_labels')) qsId('idx_total_labels').textContent=tot;
+  }
+  async function addLabel(){ const brands=await apiGet('brands'); const styles=await apiGet('styles');
+    const brandOpts=(brands||[]).map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    const styleOpts=(styles||[]).map(s=>`<option value="${s.id}">${(s.brand_name||'')+' - '+(s.name||'')}</option>`).join('');
+    const { value: formValues } = await Swal.fire({
+      title:'Agregar etiqueta', html:`
+      <div class="mb-2 text-start"><label class="form-label">Marca</label><select id="sw_brand" class="form-select">${brandOpts}</select></div>
+      <div class="mb-2 text-start"><label class="form-label">Estilo</label><select id="sw_style" class="form-select">${styleOpts}</select></div>
+      <div class="mb-2 text-start"><label class="form-label">Cantidad</label><input id="sw_qty" type="number" min="0" step="1" class="form-control" value="0"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ brand_id:$('#sw_brand').value, style_id:$('#sw_style').value, qty: parseInt($('#sw_qty').value)||0 })
+    }); if(!formValues) return; await apiPost('labels',formValues,'create'); Toast.fire({icon:'success',title:'Etiqueta creada'}); await loadLabels(); }
+  async function editLabel(id){ const d=(await apiGet('labels','get',{id}))||{}; const brands=await apiGet('brands'); const styles=await apiGet('styles');
+    const brandOpts=(brands||[]).map(b=>`<option value="${b.id}" ${(String(b.id)===String(d.brand_id)?'selected':'')}>${b.name}</option>`).join('');
+    const styleOpts=(styles||[]).map(s=>`<option value="${s.id}" ${(String(s.id)===String(d.style_id)?'selected':'')}>${(s.brand_name||'')+' - '+(s.name||'')}</option>`).join('');
+    const { value: formValues } = await Swal.fire({
+      title:'Editar etiqueta', html:`
+      <div class="mb-2 text-start"><label class="form-label">Marca</label><select id="sw_brand" class="form-select">${brandOpts}</select></div>
+      <div class="mb-2 text-start"><label class="form-label">Estilo</label><select id="sw_style" class="form-select">${styleOpts}</select></div>
+      <div class="mb-2 text-start"><label class="form-label">Cantidad</label><input id="sw_qty" type="number" min="0" step="1" class="form-control" value="${d.qty||0}"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ id, brand_id:$('#sw_brand').value, style_id:$('#sw_style').value, qty: parseInt($('#sw_qty').value)||0 })
+    }); if(!formValues) return; await apiPost('labels',formValues,'update'); Toast.fire({icon:'success',title:'Etiqueta actualizada'}); await loadLabels(); }
+  async function deleteLabel(id){ const ok=await Swal.fire({icon:'warning',title:'Confirmar',text:'¿Eliminar la etiqueta?',showCancelButton:true,confirmButtonText:'Eliminar',cancelButtonText:'Cancelar'}).then(r=>r.isConfirmed); if(!ok) return; await apiDelete('labels',id); Toast.fire({icon:'success',title:'Eliminado'}); await loadLabels(); }
+  function bindLabels(){ const t=$('#labelsTable'); if(!t) return;
+    t.addEventListener('click',e=>{ const b=e.target.closest('button[data-act]'); if(!b) return; const id=b.getAttribute('data-id'); const a=b.getAttribute('data-act'); if(a==='edit') editLabel(id); if(a==='del') deleteLabel(id); });
+    const add=qsId('btnAddLabel'); if(add) add.addEventListener('click',()=>addLabel());
+  }
 
-async function loadInsumosLabels(){const[brands,styles]=await Promise.all([apiGet("brands"),apiGet("styles")]);let labels=await apiGet("labels");const brandMap=new Map(brands.map(b=>[String(b.id),b]));const styleMap=new Map(styles.map(s=>[String(s.id),s]));const tbody=document.querySelector("#labelsTable tbody");if(!tbody)return;function refreshCards(){document.getElementById("lbl_total_units").textContent=labels.reduce((a,x)=>a+Number(x.qty||0),0);document.getElementById("lbl_total_items").textContent=labels.length;const last=labels.reduce((m,x)=>!m||new Date(x.lastModified)>new Date(m)?x.lastModified:m,null);document.getElementById("lbl_last_mod").textContent=last?formatAR(last):"—";}
-function render(){tbody.innerHTML="";for(const l of labels){const tr=document.createElement("tr");tr.innerHTML=`<td>${renderIdShort(l.id)}</td><td>${brandMap.get(String(l.brandId))?.name||""}</td><td>${l.isCustom?(l.name||"custom"):(styleMap.get(String(l.styleId))?.name||"")}</td><td>${l.qty||0}</td><td>${l.lot||""}</td><td>${l.provider||""}</td><td>${renderDateLocal(l.dateTime)}</td><td>${renderDateLocal(l.lastModified)}</td><td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary me-1" data-id="${l.id}">Editar</button><button class="btn btn-sm btn-danger" data-id="${l.id}">Eliminar</button></td>`;tbody.appendChild(tr);}refreshCards();}
-render();
-document.getElementById("btnAddLabel")?.addEventListener("click",e=>withBtnLock(e.currentTarget,async()=>{const{value,isConfirmed}=await Swal.fire({title:"Agregar etiqueta",html:labelModalBody(brands,styles,{}),showCancelButton:true,focusConfirm:false,didOpen:hookLabelModalToggle,preConfirm:collectLabelPayload});if(!isConfirmed||!value)return;await apiPost("labels",value,"create");labels=await apiGet("labels");render();Toast.fire({icon:"success",title:"Agregado"});}));
-tbody.addEventListener("click",async e=>{const btn=e.target.closest("button");if(!btn)return;const id=btn.dataset.id;if(btn.classList.contains("btn-danger")){await withBtnLock(btn,async()=>{const ok=await confirmDelete("¿Eliminar la etiqueta seleccionada?");if(!ok.isConfirmed)return;await apiDelete("labels",id);labels=await apiGet("labels");render();Toast.fire({icon:"success",title:"Eliminada"});});}else{await withBtnLock(btn,async()=>{const l=(await apiGet("labels")).find(x=>String(x.id)===String(id));const{value,isConfirmed}=await Swal.fire({title:"Editar etiqueta",html:labelModalBody(brands,styles,l),showCancelButton:true,focusConfirm:false,didOpen:hookLabelModalToggle,preConfirm:collectLabelPayload});if(!isConfirmed||!value)return;await apiPost("labels",{id,...value},"update");labels=await apiGet("labels");render();Toast.fire({icon:"success",title:"Guardado"});});}});}
+  // INSUMOS: Empty Cans
+  async function loadEmptyCans(){ const list=await apiGet('emptycans'); const tb=$('#emptycansTable tbody'); if(tb){ tb.innerHTML=''; (list||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`
+        <td>${shortId(r.id)}</td><td>${r.provider||''}</td><td>${r.lot||''}</td><td class="text-end">${Number(r.qty||0)}</td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-secondary me-1" data-act="edit" data-id="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-act="del" data-id="${r.id}">Eliminar</button></td>`; tb.appendChild(tr); }); }
+    const tot=(list||[]).reduce((a,x)=>a+Number(x.qty||0),0); if(qsId('idx_total_emptycans')) qsId('idx_total_emptycans').textContent=tot;
+  }
+  async function addEmptyCan(){ const { value: formValues } = await Swal.fire({
+      title:'Agregar latas vacías', html:`
+      <div class="mb-2 text-start"><label class="form-label">Proveedor</label><input id="sw_provider" class="form-control"></div>
+      <div class="mb-2 text-start"><label class="form-label">Lote</label><input id="sw_lot" class="form-control"></div>
+      <div class="mb-2 text-start"><label class="form-label">Cantidad</label><input id="sw_qty" type="number" min="0" step="1" class="form-control" value="0"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ provider:$('#sw_provider').value.trim(), lot:$('#sw_lot').value.trim(), qty: parseInt($('#sw_qty').value)||0 })
+  }); if(!formValues) return; await apiPost('emptycans',formValues,'create'); Toast.fire({icon:'success',title:'Latas vacías agregadas'}); await loadEmptyCans(); }
+  async function editEmptyCan(id){ const d=(await apiGet('emptycans','get',{id}))||{}; const { value: formValues } = await Swal.fire({
+      title:'Editar latas vacías', html:`
+      <div class="mb-2 text-start"><label class="form-label">Proveedor</label><input id="sw_provider" class="form-control" value="${d.provider||''}"></div>
+      <div class="mb-2 text-start"><label class="form-label">Lote</label><input id="sw_lot" class="form-control" value="${d.lot||''}"></div>
+      <div class="mb-2 text-start"><label class="form-label">Cantidad</label><input id="sw_qty" type="number" min="0" step="1" class="form-control" value="${d.qty||0}"></div>`,
+      showCancelButton:true, confirmButtonText:'Guardar', preConfirm:()=>({ id, provider:$('#sw_provider').value.trim(), lot:$('#sw_lot').value.trim(), qty: parseInt($('#sw_qty').value)||0 })
+  }); if(!formValues) return; await apiPost('emptycans',formValues,'update'); Toast.fire({icon:'success',title:'Registro actualizado'}); await loadEmptyCans(); }
+  async function deleteEmptyCan(id){ const ok=await Swal.fire({icon:'warning',title:'Confirmar',text:'¿Eliminar registro de latas vacías?',showCancelButton:true,confirmButtonText:'Eliminar',cancelButtonText:'Cancelar'}).then(r=>r.isConfirmed); if(!ok) return; await apiDelete('emptycans',id); Toast.fire({icon:'success',title:'Eliminado'}); await loadEmptyCans(); }
+  function bindEmptyCans(){ const t=$('#emptycansTable'); if(!t) return;
+    t.addEventListener('click',e=>{ const b=e.target.closest('button[data-act]'); if(!b) return; const id=b.getAttribute('data-id'); const a=b.getAttribute('data-act'); if(a==='edit') editEmptyCan(id); if(a==='del') deleteEmptyCan(id); });
+    const add=qsId('btnAddEmptyCan'); if(add) add.addEventListener('click',()=>addEmptyCan());
+  }
 
-async function loadInsumosCans(){let cans=await apiGet("emptycans");const tbody=document.querySelector("#emptyCansTable tbody");if(!tbody)return;const positives=cans.filter(c=>Number(c.qty||0)>0);function refreshCards(){document.getElementById("can_total_units").textContent=positives.reduce((a,x)=>a+Number(x.qty||0),0);document.getElementById("can_total_items").textContent=positives.length;const last=positives.reduce((m,x)=>!m||new Date(x.lastModified)>new Date(m)?x.lastModified:m,null);document.getElementById("can_last_mod").textContent=last?formatAR(last):"—";}
-function render(){tbody.innerHTML="";for(const c of positives){const tr=document.createElement("tr");tr.innerHTML=`<td>${renderIdShort(c.id)}</td><td>${c.qty||0}</td><td>${c.lot||""}</td><td>${c.provider||""}</td><td>${renderDateLocal(c.dateTime)}</td><td>${renderDateLocal(c.lastModified)}</td><td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary" data-id="${c.id}">Editar</button></td>`;tbody.appendChild(tr);}refreshCards();}
-render();
-document.getElementById("btnAddEmptyCans_insumos")?.addEventListener("click",e=>withBtnLock(e.currentTarget,async()=>{const{value,isConfirmed}=await Swal.fire({title:"Ingresar latas vacías",html:emptyCansModalBody({}),showCancelButton:true,preConfirm:collectEmptyCansPayload});if(!isConfirmed||!value)return;await apiPost("emptycans",value,"add");await loadInsumosCans();Toast.fire({icon:"success",title:"Ingreso registrado"});}));
-tbody.addEventListener("click",async e=>{const btn=e.target.closest("button");if(!btn)return;const id=btn.dataset.id;await withBtnLock(btn,async()=>{const cur=(await apiGet("emptycans")).find(x=>String(x.id)===String(id));const{value,isConfirmed}=await Swal.fire({title:"Editar lote de latas",html:emptyCansModalBody(cur),showCancelButton:true,preConfirm:collectEmptyCansPayload});if(!isConfirmed||!value)return;await apiPost("emptycans",{id,...value},"update");await loadInsumosCans();Toast.fire({icon:"success",title:"Guardado"});});});}
+  // MOVEMENTS
+  async function loadMovements(){ const rows=await apiGet('movements'); const tb=$('#movementsTable tbody'); if(!tb) return;
+    tb.innerHTML=''; (rows||[]).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`
+      <td>${shortId(r.id)}</td><td>${r.entity||''}</td><td>${r.action||''}</td><td>${r.desc||r.description||''}</td><td>${fmtAR(r.createdAt||r.date||'')}</td>`; tb.appendChild(tr); });
+  }
 
-async function loadInsumosPage(){await loadInsumosLabels();await loadInsumosCans();}
+  // INDEX totals
+  async function loadHomeTotals(){ try{ const [ec,lb]=await Promise.all([apiGet('emptycans'),apiGet('labels')]);
+      if(qsId('idx_total_emptycans')) qsId('idx_total_emptycans').textContent=(ec||[]).reduce((a,x)=>a+Number(x.qty||0),0);
+      if(qsId('idx_total_labels')) qsId('idx_total_labels').textContent=(lb||[]).reduce((a,x)=>a+Number(x.qty||0),0);
+    }catch(e){ console.error(e); } }
 
-async function boot(){initTheme();if(document.getElementById("movementsTable"))await bootMovements();if(document.getElementById("brandsTable"))await bootConfig();if(document.querySelector("#tab-labels")||document.querySelector("#tab-cans"))await loadInsumosPage();if(document.getElementById("idx_total_emptycans")||document.getElementById("idx_total_labels")){
-  try{
-    const [emptycans,labels] = await Promise.all([apiGet("emptycans"), apiGet("labels")]);
-    if(document.getElementById("idx_total_emptycans")) document.getElementById("idx_total_emptycans").textContent = emptycans.reduce((a,x)=>a+Number(x.qty||0),0);
-    if(document.getElementById("idx_total_labels")) document.getElementById("idx_total_labels").textContent = labels.reduce((a,x)=>a+Number(x.qty||0),0);
-  }catch(e){ console.error(e); }
-}
-}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+  // Boot
+  async function boot(){ 
+    if(qsId('brandsTable')||qsId('containersTable')||qsId('stylesTable')){ bindBrands(); bindContainers(); bindStyles(); await Promise.all([loadBrands(),loadContainers(),loadStyles()]); }
+    if(qsId('labelsTable')||qsId('emptycansTable')){ bindLabels(); bindEmptyCans(); await Promise.all([loadLabels(),loadEmptyCans()]); }
+    if(qsId('movementsTable')){ await loadMovements(); }
+    if(qsId('idx_total_emptycans') || qsId('idx_total_labels')){ await loadHomeTotals(); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
