@@ -8,9 +8,15 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <!-- Cargamos el loader del proyecto (ruta raíz) -->
+  <script src="./app-loader.js?v=1" defer></script>
+  <!-- Fallback si tu proyecto lo tiene en /js/ -->
   <script src="./js/app-loader.js?v=1" defer></script>
+  <!-- Add-on de reportes (aislado en IIFE para no re-declarar variables) -->
+  <script src="./reports-addon.js?v=1" defer></script>
   <style>
-    body{{background:var(--bs-body-bg)}} .table td,.table th{{vertical-align:middle}}
+    body{background:var(--bs-body-bg)}
+    .table td,.table th{vertical-align:middle}
   </style>
 </head>
 <body>
