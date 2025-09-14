@@ -4,10 +4,11 @@
  - Latas: sólo ingresos positivos, editar actualiza movimiento 'emptycans/add' (qty y descripción con emptyId/lot/provider)
  - Producción: selector de etiqueta muestra "Marca - Estilo/Custom - stock qty"; estado 'final' si etiquetada y pasteurizada
 */
-const API_BASE = "https://script.google.com/macros/s/AKfycbw1S5MZyaKaligga7Gfbtkr8H_PF4_4ZnYXpg0K4I3Ey0eHdJjIyUzHA-YJtLNRXX0J/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbxGfnvm8OXMnd-EuIyHGVL8ZdzvZEQH8R0GiG4hUhilwWltxZ5zYer7FQ-GIvAenfs/exec";
 const TZ_AR = "America/Argentina/Buenos_Aires";
 
-const Toast=Swal.mixin({toast:true,position:"top-end",showConfirmButton:false,timer:1700,timerProgressBar:true,didOpen:t=>{t.addEventListener("mouseenter",Swal.stopTimer);t.addEventListener("mouseleave",Swal.resumeTimer);}});
+var Toast = window.Toast || Swal.mixin({toast:true,position:"top-end",showConfirmButton:false,timer:1700,timerProgressBar:true,didOpen:t=>{t.addEventListener("mouseenter",Swal.stopTimer);t.addEventListener("mouseleave",Swal.resumeTimer);}});
+window.Toast = Toast;
 function lockBtn(btn){if(!btn)return()=>{};const prev={d:btn.disabled,h:btn.innerHTML};btn.disabled=true;btn.innerHTML=`<span class="spinner-border spinner-border-sm"></span> ${btn.textContent||"Procesando…"}`;return()=>{btn.disabled=prev.d;btn.innerHTML=prev.h};}
 async function withBtnLock(btn,fn){const u=lockBtn(btn);try{return await fn();}finally{u();}}
 function confirmDelete(text="¿Eliminar este registro?"){return Swal.fire({icon:"warning",title:"Confirmar",text,showCancelButton:true,confirmButtonText:"Eliminar",cancelButtonText:"Cancelar"});}
