@@ -1,6 +1,1 @@
-(()=>{
-  const doc=document.documentElement;
-  function apply(){ const t=doc.getAttribute('data-theme')||'light'; document.body.classList.remove('theme-light','theme-dark'); document.body.classList.add(`theme-${t}`); }
-  const obs=new MutationObserver(apply);
-  document.addEventListener('DOMContentLoaded',()=>{ apply(); obs.observe(doc,{attributes:true,attributeFilter:['data-theme']}); });
-})();
+(()=>{const d=document.documentElement;function a(){const t=d.getAttribute("data-theme")||"light";document.body.classList.remove("theme-light","theme-dark");document.body.classList.add(`theme-${t}`)}const o=new MutationObserver(a);document.addEventListener("DOMContentLoaded",()=>{a();o.observe(d,{attributes:true,attributeFilter:["data-theme"]})});})();
