@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Movimientos | Brewery Stock</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Configuración global -->
+  <script src="./js/config.js"></script>
+
+  <!-- Script de la página -->
+  <script src="./js/app.js" defer></script>
+</head>
+<body>
+  <header class="container" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;">
+    <h1 style="margin:0;">📄 Movimientos</h1>
+    <nav style="display:flex;gap:8px;">
+      <a href="index.html" class="btn">⬅ Volver</a>
+    </nav>
+  </header>
+
+  <main class="container" style="margin-top:16px;">
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <label class="field" style="min-width:160px;">
+            <span>Filtrar por tipo</span>
+            <select id="typeFilter">
+              <option value="">Todos</option>
+              <option value="EMPTY_CANS_ADD">EMPTY_CANS_ADD</option>
+              <option value="LABEL_ADD">LABEL_ADD</option>
+            </select>
+          </label>
+          <label class="field" style="min-width:120px;">
+            <span>Por página</span>
+            <select id="pageSize">
+              <option>10</option>
+              <option selected>20</option>
+              <option>50</option>
+              <option>100</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <button id="refreshMovs" class="btn">↻ Refrescar</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto;margin-top:12px;">
+        <table class="table" id="movsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tipo</th>
+              <th>Ref</th>
+              <th>Cantidad</th>
+              <th>Proveedor</th>
+              <th>Lote</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="7" style="text-align:center;padding:18px;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="pager" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;">
+        <button id="prevPage" class="btn ghost">⬅ Anterior</button>
+        <div id="pageInfo" class="muted small">Página 1 de 1 (0 registros)</div>
+        <button id="nextPage" class="btn ghost">Siguiente ➡</button>
+      </div>
+    </section>
+  </main>
+
+</body>
+</html>

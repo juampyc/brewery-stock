@@ -6,14 +6,25 @@
   <title>Stock · Latas & Etiquetas</title>
   <link rel="stylesheet" href="css/styles.css?v=1" />
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Configuración global -->
+  <script src="./js/config.js"></script>
+
+  <!-- Script de la página -->
+  <script src="./js/app.js" defer></script>
 </head>
+
 <body>
   <header class="topbar">
     <h1>Stock · Cerveza Castelo</h1>
     <div class="actions">
       <button id="refreshBtn" class="btn">↻ Refrescar</button>
       <button id="addEmptyBtn" class="btn primary">+ Ingresar latas vacías</button>
+      <button id="addLabelBtn" class="btn">+ Ingresar etiquetas</button>
     </div>
+    <nav class="topbar">
+      <a href="movements.html" class="btn ghost" title="Ver movimientos">📄 Movimientos</a>
+    </nav>
   </header>
 
   <main class="container">
@@ -62,14 +73,75 @@
     </div>
   </div>
 
+  <!-- Modal: Ingresar etiquetas -->
+  <div id="labelsModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal__content">
+      <header class="modal__header">
+        <h3>Ingresar etiquetas</h3>
+        <button id="closeLabelsModal" class="icon-btn" aria-label="Cerrar">✕</button>
+      </header>
+      <form id="labelsForm" class="form">
+        <div class="grid">
+          <label class="field">
+            <span>Cantidad (qty)</span>
+            <input type="number" min="1" step="1" name="qty" required placeholder="Ej: 1000" />
+          </label>
+          <label class="field">
+            <span>Proveedor (provider)</span>
+            <input type="text" name="provider" required placeholder="Ej: Imprenta XYZ" />
+          </label>
+          <label class="field">
+            <span>Lote (lot)</span>
+            <input type="text" name="lot" required placeholder="Ej: L-ETI-2025-09" />
+          </label>
+        </div>
+
+        <!-- Bloque compacto: izquierda = toggle + (debajo) campo; derecha vacía -->
+        <div class="grid grid-3 align-start" style="margin-top:8px;">
+          <!-- Columna izquierda apilada -->
+          <div class="col-left">
+            <label class="field inline-check" id="customToggle">
+              <input type="checkbox" name="isCustom" id="isCustomChk" />
+              <span>Es personalizada</span>
+            </label>
+
+            <!-- No personalizada: selector debajo -->
+            <div id="nonCustomFields" class="field">
+              <span>Marca / Estilo (desde "styles")</span>
+              <select id="styleCombo" name="styleCombo" required></select>
+            </div>
+
+            <!-- Personalizada: nombre debajo -->
+            <div id="customFields" class="field" style="display:none;">
+              <span>Nombre (custom)</span>
+              <input type="text" name="name" placeholder="Ej: Edición especial Aniversario" />
+            </div>
+          </div>
+
+          <!-- espacio a la derecha para que no se estire -->
+          <div class="span-2"></div>
+        </div>
+
+
+        <footer class="modal__footer">
+          <button type="button" class="btn" id="cancelLabelsBtn">Cancelar</button>
+          <button type="submit" class="btn primary" id="submitLabelsBtn">Guardar etiquetas</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
   <div id="backdrop" class="backdrop" aria-hidden="true"></div>
 
+  <footer class="container muted small" style="text-align:center;margin:32px 0 12px;">
+    <span id="appFooter"></span>
+  </footer>
+
   <script>
-    // ⚠️ Reemplaza con tu URL del Web App de Google Apps Script (Deployment accesible por "Anyone")
-    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwlYALQ4uaHI5Z3zFzqAoMa2Us2GLebzmRbLZpS8-HB6fgXC0SKoeVkNhuPOyfb--I/exec";
-    // ⚠️ ID del Spreadsheet provisto por el usuario (no se expone al cliente en requests)
-    window.SPREADSHEET_ID = "1eML8y0shrdheQ3bISwV3bnimsAVDruR1x1JFUKNWcog";
-  </script>
-  <script src="js/app.js?v=1" defer></script>
+  // Inyectar nombre + versión en el footer
+  document.getElementById("appFooter").textContent =
+    getAppConfig("APP_NAME") + " · v" + getAppConfig("VERSION");
+  </script>   
+
 </body>
 </html>

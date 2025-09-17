@@ -35,3 +35,95 @@ h1{margin:0;font-size:18px;letter-spacing:.2px}
 input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0b0f14;color:var(--fg)}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;visibility:hidden;transition:opacity .2s ease;z-index:40}
 .backdrop[aria-hidden="false"]{opacity:1;visibility:visible}
+/* Grid de 3 columnas para escritorio */
+.grid.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.align-start { align-items: start; }
+
+/* Checkbox inline con el texto */
+.field.inline-check { display: flex; align-items: center; gap: 10px; flex-direction: row; }
+
+/* Los campos a la derecha ocupan dos columnas */
+.field.span-2 { grid-column: span 2; }
+
+/* Responsive: una sola columna en mobile */
+@media (max-width: 720px) {
+  .grid.grid-3 { grid-template-columns: 1fr; }
+  .field.span-2 { grid-column: span 1; }
+}
+/* Grid de 3 columnas (ya lo usás) */
+.grid.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.align-start { align-items: start; }
+.span-2 { grid-column: span 2; }
+
+/* Columna izquierda apilada */
+.col-left { display: flex; flex-direction: column; gap: 12px; }
+
+/* Checkbox inline con texto */
+.field.inline-check { display: flex; align-items: center; gap: 10px; flex-direction: row; }
+
+/* Estilo del SELECT igual al INPUT */
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b0f14;
+  color: var(--fg);
+  outline: none;
+}
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+}
+
+/* Responsive: una sola columna en mobile */
+@media (max-width: 720px) {
+  .grid.grid-3 { grid-template-columns: 1fr; }
+  .span-2 { grid-column: span 1; }
+}
+
+/* Texto muuuuy sutil para previews */
+.muted { color: var(--muted, #8b97a3); }
+.small { font-size: 12px; line-height: 1.3; }
+
+/* El <select> con mismo look que los inputs (por si aún no lo sumaste) */
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #1f2a36);
+  background: var(--bg-input, #0b0f14);
+  color: var(--fg, #e7edf3);
+  outline: none;
+}
+select:focus {
+  border-color: var(--primary, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+}
+
+/* Mobile: preview más chico/compacto */
+@media (max-width: 720px) {
+  .small { font-size: 11px; }
+  .muted { color: #9aa7b3; }
+}
+
+/* Tablas siempre a ancho completo del contenedor */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #ccc);
+  white-space: nowrap; /* si querés que no se corten los textos */
+}
+
+.table th {
+  background: var(--bg-header, #1a1f24);
+  color: var(--fg-header, #fff);
+  font-weight: 600;
+}
+
