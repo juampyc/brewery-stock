@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Producción | Brewery Stock</title>
+  
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/styles.css?v=3" />
+
+  <!-- Lib SweetAlert -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Config Global (define window.GAS_WEB_APP_URL / APP_CONFIG) -->
+  <script src="js/config.js"></script>
+
+
+</head>
+<body>
+  <div id="site-header"></div>
+  <script src="js/header.js" defer></script>
+
+  <main class="container" style="margin-top:16px;">
+    <!-- Acciones -->
+    <section class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="margin:0;">🏭 Producción</h2>
+      <div class="actions">
+        <button id="newProdBtn" class="btn">➕ Nueva producción (Enlatar)</button>
+      </div>
+    </section>
+
+    <!-- Listado de producciones -->
+    <section class="card" style="margin-top:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <label class="field" style="min-width:160px;">
+          <span>Por página</span>
+          <select id="pageSize">
+            <option>10</option>
+            <option selected>20</option>
+            <option>50</option>
+          </select>
+        </label>
+        <div class="actions"><button id="refreshBtn" class="btn">↻ Refrescar</button></div>
+      </div>
+
+      <div style="overflow:auto;margin-top:12px;">
+        <table class="table" id="prodTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Marca</th>
+              <th>Estilo</th>
+              <th>Cantidad</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="6" style="text-align:center;padding:18px;">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div id="pager" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;">
+        <button id="prevPage" class="btn ghost">⬅ Anterior</button>
+        <div id="pageInfo" class="muted small">Página 1 de 1 (0 registros)</div>
+        <button id="nextPage" class="btn ghost">Siguiente ➡</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Backdrop -->
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
+  <!-- Modal: Nueva producción (Enlatar) -->
+  <div id="newProdModal" class="modal" aria-hidden="true">
+    <div class="modal__content labels-compact">
+      <header class="modal__header">
+        <h3>Nueva producción (Enlatar)</h3>
+        <button id="closeNewProd" class="icon-btn" aria-label="Cerrar">✕</button>
+      </header>
+      <form id="newProdForm" class="form">
+        <div class="grid form grid-2">
+          <label class="field">
+            <span>Cantidad (latas)</span>
+            <input type="number" min="1" step="1" name="qty" required placeholder="Ej: 500" />
+          </label>
+          <label class="field span-2">
+            <span>Marca / Estilo</span>
+            <select id="prodStyleCombo" name="styleCombo" required></select>
+            <div id="prodStylePreview" class="help"></div>
+          </label>
+        </div>
+        <footer class="modal__footer">
+          <button type="button" class="btn" id="cancelNewProd">Cancelar</button>
+          <button type="submit" class="btn primary" id="submitNewProd">Crear</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <!-- Etiquetar producción -->
+  <div id="labelProdModal" class="modal" aria-hidden="true">
+    <div class="modal__content">
+      <div class="modal__header">
+        <h3>Etiquetar producción</h3>
+        <button id="closeLabelProd" class="icon-btn" type="button" aria-label="Cerrar">✕</button>
+      </div>
+
+      <form id="labelProdForm" class="form">
+        <input type="hidden" name="prodId">
+
+        <div class="grid grid-3 align-start">
+          <div class="field span-2">
+            <label>Tipo de etiquetado</label>
+            <div style="display:flex; gap:18px; align-items:center; margin-top:6px;">
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="radio" name="labelMode" value="same" checked>
+                <span>Mismo estilo</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="radio" name="labelMode" value="custom">
+                <span>Personalizada</span>
+              </label>
+            </div>
+
+            <div id="sameStyleInfo" class="small muted" style="margin-top:8px;">
+              Se usará el mismo estilo que enlatado:
+              <strong id="sameStyleName">—</strong>
+            </div>
+          </div>
+
+          <div class="field span-2" id="customLabelGroup" style="display:none;">
+            <label>Etiqueta personalizada</label>
+            <select id="customLabelSelect">
+              <option value="">Cargando...</option>
+            </select>
+            <div class="small muted" style="margin-top:6px;">
+              Se consumirá stock de etiquetas personalizadas (marca = la de la producción, estilo = el nombre elegido).
+            </div>
+          </div>
+        </div>
+
+        <div class="modal__footer">
+          <button id="cancelLabelProd" class="btn" type="button">Cancelar</button>
+          <button id="submitLabelProd" class="btn primary" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <script src="./js/production.js" defer></script>
+</body>
+</html>

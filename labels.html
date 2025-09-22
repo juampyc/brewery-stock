@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Etiquetas | Brewery Stock</title>
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="./css/styles.css?v=3" />
+
+  <!-- Lib SweetAlert -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- Configuración global -->
+  <script src="./js/config.js"></script>
+
+  <!-- Script de página -->
+  <script src="./js/labels.js" defer></script> 
+  
+</head>
+<body>
+  <!-- Header global -->
+  <div id="site-header"></div>
+  <script src="./js/header.js" defer></script>
+
+  <main class="container" style="margin-top:16px;">
+
+    <!-- Acciones -->
+    <section class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="margin:0;">🏷️ Etiquetas</h2>
+      <div class="actions">
+        <button id="addLabelBtn" class="btn">➕ Ingresar etiquetas</button>
+      </div>
+    </section>
+
+    <!-- Resumen por estilo -->
+    <section class="card" style="margin-top:12px;">
+      <h3 style="margin:0 0 8px;">Resumen por estilo</h3>
+      <div style="overflow:auto;">
+        <table class="table" id="labelsSummary">
+          <thead>
+            <tr>
+              <th>Marca</th>
+              <th>Estilo</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="3" style="text-align:center;padding:12px;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Movimientos de etiquetas (LABEL_ADD) -->
+    <section class="card" style="margin-top:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <label class="field" style="min-width:120px;">
+            <span>Por página</span>
+            <select id="pageSize">
+              <option>10</option>
+              <option selected>20</option>
+              <option>50</option>
+              <option>100</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <button id="refreshMovs" class="btn">↻ Refrescar</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto;margin-top:12px;">
+        <table class="table" id="movsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tipo</th>
+              <th>Ref</th>
+              <th>Cantidad</th>
+              <th>Proveedor</th>
+              <th>Lote</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="7" style="text-align:center;padding:18px;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="pager" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;">
+        <button id="prevPage" class="btn ghost">⬅ Anterior</button>
+        <div id="pageInfo" class="muted small">Página 1 de 1 (0 registros)</div>
+        <button id="nextPage" class="btn ghost">Siguiente ➡</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Backdrop compartido -->
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
+  <!-- Modal Ingresar etiquetas -->
+  <div id="labelsModal" class="modal" aria-hidden="true">
+    <div class="modal__content labels-compact">
+      <header class="modal__header">
+        <h3>Ingresar etiquetas</h3>
+        <button id="closeLabelsModal" class="icon-btn" aria-label="Cerrar">✕</button>
+      </header>
+
+      <form id="labelsForm" class="form">
+        <div class="grid form grid-2">
+          <label class="field">
+            <span>Cantidad (qty)</span>
+            <input type="number" min="1" step="1" name="qty" required placeholder="Ej: 1000" />
+          </label>
+          <label class="field">
+            <span>Proveedor (provider)</span>
+            <input type="text" name="provider" required placeholder="Ej: Imprenta XYZ" />
+          </label>
+          <label class="field span-2">
+            <span>Lote (lot)</span>
+            <input type="text" name="lot" required placeholder="Ej: L-ETI-CASTELO-IPA-202509" />
+          </label>
+        </div>
+
+        <div class="grid" style="margin-top:8px;">
+          <label class="field inline-check" id="customToggle">
+            <input type="checkbox" name="isCustom" id="isCustomChk" />
+            <span>Es personalizada</span>
+          </label>
+
+          <div id="nonCustomFields" class="field">
+            <span>Marca / Estilo (desde "styles")</span>
+            <select id="styleCombo" name="styleCombo" required></select>
+            <div id="stylePreview" class="help"></div>
+          </div>
+
+          <div id="customFields" class="field" style="display:none;">
+            <span>Nombre (custom)</span>
+            <input type="text" name="name" placeholder="Ej: Edición especial Aniversario" />
+          </div>
+        </div>
+
+        <footer class="modal__footer">
+          <button type="button" class="btn" id="cancelLabelsBtn">Cancelar</button>
+          <button type="submit" class="btn primary" id="submitLabelsBtn">Guardar</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

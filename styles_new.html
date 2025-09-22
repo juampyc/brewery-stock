@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Nuevo estilo</title>
+  <link rel="stylesheet" href="css/styles.css?v=2">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="./js/config.js"></script>
+  <script src="js/header.js" defer></script>
+  <style>
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:760px){ .grid-2{grid-template-columns:1fr} }
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input[type="color"]{width:44px;height:32px;padding:0;border:none;background:transparent;cursor:pointer;border-radius:6px}
+    .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--border);margin-right:6px;vertical-align:middle}
+    .table-wrap{overflow:auto}
+  </style>
+</head>
+<body>
+  <div id="site-header"></div>
+  <main class="container">
+
+    <div class="card" style="max-width:900px">
+      <h2>Crear nuevo estilo</h2>
+      <form id="styleForm">
+        <div class="grid-2">
+          <label>Marca
+            <select id="brandSel" name="brandId" required></select>
+          </label>
+          <label>Nombre del estilo
+            <input type="text" id="styleName" name="name" required placeholder="IPA, Kolsch, etc.">
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <label>Color
+            <input type="color" id="styleColor" name="color" value="#147500" title="Elegí color del estilo">
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:8px">
+            <input type="checkbox" id="showAlways" name="showAlways" checked>
+            Mostrar siempre
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn" type="submit">Guardar estilo</button>
+          <button class="btn ghost" type="button" id="reloadBtn">↻ Recargar</button>
+        </div>
+      </form>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div class="card">
+      <h2>Estilos actuales</h2>
+      <div class="table-wrap">
+        <table class="table" id="stylesTable">
+          <thead>
+            <tr>
+              <th>Marca</th>
+              <th>Estilo</th>
+              <th>Color</th>
+              <th>Mostrar</th>
+              <th>StyleId</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="5" style="text-align:center;padding:16px">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+  <script src="js/styles_new.js"></script>
+</body>
+</html>

@@ -1,7 +1,8 @@
+// js/movements.js
 (function(){
   'use strict';
 
-  var WEB_APP_URL = (window.GAS_WEB_APP_URL || '');
+  var WEB_APP_URL = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
 
   function $(sel, el){ if(!el) el=document; return el.querySelector(sel); }
   function TOAST(icon, title){
@@ -16,13 +17,12 @@
   var typeFilter = $('#typeFilter');
   var pageSizeSel = $('#pageSize');
 
-  var state = { page: 1, pageSize: 20, total: 0, type: '' };
+  var urlParams = new URLSearchParams(location.search);
+  var initialType = urlParams.get('type') || '';
+
+  var state = { page: 1, pageSize: 20, total: 0, type: initialType };
 
   async function callGAS(action, payload){
-    if (!WEB_APP_URL || WEB_APP_URL.indexOf('PUT_')===0){
-      TOAST('warning','Configurá la URL del Web App en movements.html');
-      return { ok:false, error:'MISSING_WEB_APP_URL' };
-    }
     var body = new URLSearchParams();
     body.set('action', action);
     body.set('payload', JSON.stringify(payload||{}));
@@ -30,8 +30,8 @@
       var res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body });
       var text = await res.text();
       if(!res.ok) return { ok:false, error:'HTTP_'+res.status, raw:text };
-      try { return JSON.parse(text); } catch(e){ return { ok:false, error:'INVALID_JSON', raw:text }; }
-    }catch(err){ return { ok:false, error:String(err) }; }
+      return JSON.parse(text);
+    }catch(e){ return { ok:false, error:String(e) }; }
   }
 
   function renderRows(items){
@@ -45,7 +45,7 @@
     function fmtDate(dateStr){
       if(!dateStr) return '';
       var d = new Date(dateStr);
-      if(isNaN(d.getTime())) return dateStr; // fallback si no parsea
+      if(isNaN(d.getTime())) return dateStr;
       var dd = String(d.getDate()).padStart(2,'0');
       var mm = String(d.getMonth()+1).padStart(2,'0');
       var yy = String(d.getFullYear()).slice(-2);
@@ -65,15 +65,12 @@
       var formattedDate = fmtDate(dateStr);
 
       out.push('<tr>',
-        // Tooltip con el valor completo
         '<td><span title="', fullId.replace(/"/g,'&quot;'), '">', shortId, '</span></td>',
         '<td>', (it.type||''), '</td>',
         '<td><span title="', fullRef.replace(/"/g,'&quot;'), '">', shortRef, '</span></td>',
         '<td>', (it.qty!=null?it.qty:''), '</td>',
         '<td>', (it.provider||''), '</td>',
         '<td>', (it.lot||''), '</td>',
-        // Si querés tooltip con la fecha original, descomentá la línea con <span title=...>
-        // '<td><span title="', dateStr.replace(/"/g,'&quot;'), '">', formattedDate, '</span></td>',
         '<td>', formattedDate, '</td>',
       '</tr>');
     }
@@ -86,6 +83,53 @@
     if(pagerInfo) pagerInfo.textContent = 'Página ' + state.page + ' de ' + pages + ' (' + state.total + ' registros)';
     if(prevBtn) prevBtn.disabled = (state.page <= 1);
     if(nextBtn) nextBtn.disabled = (state.page >= pages);
+  }
+
+  function updateUrlQuery(noReload){
+    var p = new URLSearchParams(location.search);
+    if (state.type) p.set('type', state.type); else p.delete('type');
+    var newUrl = location.pathname + (p.toString() ? ('?' + p.toString()) : '');
+    if (noReload) history.replaceState(null, '', newUrl);
+    else history.pushState(null, '', newUrl);
+  }
+
+  function updateActiveFilterUI(){
+    var box = document.getElementById('activeFilters');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!state.type){
+      box.style.display = 'none';
+      return;
+    }
+    box.style.display = 'flex';
+
+    var chip = document.createElement('div');
+    chip.className = 'btn ghost';
+    chip.style.cursor = 'default';
+    chip.style.display = 'inline-flex';
+    chip.style.alignItems = 'center';
+    chip.style.gap = '8px';
+
+    var txt = document.createElement('span');
+    txt.textContent = 'Filtro: ' + state.type;
+
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'icon-btn';
+    x.setAttribute('aria-label', 'Quitar filtro');
+    x.textContent = '✕';
+    x.onclick = function(){
+      state.type = '';
+      if (typeFilter) typeFilter.value = '';
+      state.page = 1;
+      updateUrlQuery(true);
+      updateActiveFilterUI();
+      loadPage();
+    };
+
+    chip.appendChild(txt);
+    chip.appendChild(x);
+    box.appendChild(chip);
   }
 
   async function loadPage(){
@@ -111,13 +155,20 @@
   });
   if(refreshBtn) refreshBtn.addEventListener('click', function(){ loadPage(); });
   if(typeFilter) typeFilter.addEventListener('change', function(){
-    state.type = typeFilter.value||''; state.page = 1; loadPage();
+    state.type = typeFilter.value||'';
+    state.page = 1;
+    updateUrlQuery();
+    updateActiveFilterUI();
+    loadPage();
   });
   if(pageSizeSel) pageSizeSel.addEventListener('change', function(){
     var n = parseInt(pageSizeSel.value,10) || 20; state.pageSize = n; state.page = 1; loadPage();
   });
 
   document.addEventListener('DOMContentLoaded', function(){
-    loadPage();
+    if (typeFilter && state.type) typeFilter.value = state.type;
+    updateActiveFilterUI();
+    loadPage(); // con backend ordenado DESC, esto ya trae lo más reciente primero
   });
+
 })();

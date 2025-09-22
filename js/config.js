@@ -2,10 +2,10 @@
 // ====== Configuración global Brewery Stock ======
 (function () {
   const C = {
-    GAS_WEB_APP_URL: "https://script.google.com/macros/s/AKfycbwiB_HQM4rE3Ac5KQiOJl98JGi1X4gDFR6ymaUwaWP8xPmooXa37ERyqWH6hOq0lxXH/exec",
+    GAS_WEB_APP_URL: "https://script.google.com/macros/s/AKfycbzxhd8eQ54BrLoi0PVqGmfRP1G3vHQm2ORfNeedQ37guLJYbJGLkzdX3tK3pDgtD_F8/exec",
     SPREADSHEET_ID: "1eML8y0shrdheQ3bISwV3bnimsAVDruR1x1JFUKNWcog",
     APP_NAME: "Brewery Stock",
-    VERSION: "1.0.1",
+    VERSION: "1.0.2",
     TIMEZONE: "America/Argentina/Buenos_Aires"
   };
 

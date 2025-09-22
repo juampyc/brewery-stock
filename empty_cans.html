@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Latas Vacías | Brewery Stock</title>
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/styles.css?v=2">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Configuración global -->
+  <script src="./js/config.js"></script>
+
+  <!-- Script de la página -->
+  <script src="./js/empty_cans.js" defer></script>
+
+  <style>
+    .muted { color: var(--muted); }
+    .big { font-size: 1.6em; font-weight: 700; }
+    .table-wrap { overflow: auto; }
+  </style>
+</head>
+<body>
+  <!-- Header global -->
+  <div id="site-header"></div>
+  <script src="js/header.js" defer></script>
+
+  <main class="container" style="margin-top:16px;">
+    <!-- Tarjeta de total + botones -->
+    <section class="card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 style="margin:0;font-size:1.2em;">Stock actual de latas vacías</h2>
+        <p id="emptyCansTotal" class="big" style="margin:6px 0 0;">0</p>
+        <div class="muted small">Stock neto (altas - consumos - scrap)</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="addEmptyBtn" class="btn">➕ Ingresar latas vacías</button>
+        <!-- (Se quita el link a movements) -->
+      </div>
+    </section>
+
+    <!-- Listado (todos los movimientos de latas vacías) -->
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <label class="field" style="min-width:120px;">
+            <span>Por página</span>
+            <select id="pageSize">
+              <option>10</option>
+              <option selected>20</option>
+              <option>50</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <button id="refreshBtn" class="btn">↻ Refrescar</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:12px;">
+        <table class="table" id="emptyTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tipo</th>
+              <th>Ref</th>
+              <th>Cantidad</th>
+              <th>Proveedor</th>
+              <th>Lote</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="7" style="text-align:center;padding:18px;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="pager" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;">
+        <button id="prevPage" class="btn ghost">⬅ Anterior</button>
+        <div id="pageInfo" class="muted small">Página 1 de 1 (0 registros)</div>
+        <button id="nextPage" class="btn ghost">Siguiente ➡</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal de ingreso -->
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-content card">
+      <h2>Ingresar latas vacías</h2>
+      <form id="emptyForm">
+        <label class="field">
+          <span>Cantidad</span>
+          <input type="number" name="qty" required min="1" />
+        </label>
+        <label class="field">
+          <span>Proveedor</span>
+          <input type="text" name="provider" required />
+        </label>
+        <label class="field">
+          <span>Lote</span>
+          <input type="text" name="lot" required />
+        </label>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:12px;">
+          <button type="button" id="cancelBtn" class="btn ghost">Cancelar</button>
+          <button type="submit" id="submitBtn" class="btn">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
+  <!-- Footer (opcional) -->
+  <footer class="container muted small" style="text-align:center;margin:32px 0 12px;">
+    <span id="appFooter"></span>
+  </footer>
+  <script>
+    if (window.getAppConfig) {
+      document.getElementById("appFooter").textContent =
+        getAppConfig("APP_NAME") + " · v" + getAppConfig("VERSION");
+    }
+  </script>
+
+</body>
+</html>

@@ -4,144 +4,211 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stock · Latas & Etiquetas</title>
-  <link rel="stylesheet" href="css/styles.css?v=1" />
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="./css/styles.css?v=3" />
+
+  <!-- Lib SweetAlert -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Lib Chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Configuración global -->
   <script src="./js/config.js"></script>
 
-  <!-- Script de la página -->
-  <script src="./js/app.js" defer></script>
+  <style>
+    .charts-grid{display:grid;grid-template-columns:1fr;gap:16px}
+    .kpi-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:16px}
+    @media (max-width: 900px){ .kpi-grid{grid-template-columns:1fr} }
+    .pie-card{width:320px;min-width:280px}
+    .pie-wrap{display:flex;align-items:center;justify-content:center;height:220px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+    .muted{color:var(--muted)}
+    .big{font-size:32px;font-weight:700;margin:6px 0}
+    .container{max-width:1100px;margin:0 auto;padding:16px}
+    .chart-wrap{overflow:auto;padding-bottom:8px}
+    .chart-wrap canvas{min-width:720px}
+  </style>
 </head>
-
 <body>
-  <header class="topbar">
-    <h1>Stock · Cerveza Castelo</h1>
-    <div class="actions">
-      <button id="refreshBtn" class="btn">↻ Refrescar</button>
-      <button id="addEmptyBtn" class="btn primary">+ Ingresar latas vacías</button>
-      <button id="addLabelBtn" class="btn">+ Ingresar etiquetas</button>
-    </div>
-    <nav class="topbar">
-      <a href="movements.html" class="btn ghost" title="Ver movimientos">📄 Movimientos</a>
-    </nav>
-  </header>
+  <!-- Header global -->
+  <div id="site-header"></div>
+  <script src="./js/header.js" defer></script>
 
   <main class="container">
-    <section class="cards">
-      <article class="card">
+    <!-- KPIs + PIE pequeño -->
+    <section class="kpi-grid">
+      <div class="card">
         <h2>Latas vacías</h2>
-        <p class="big" id="emptyCansCount">—</p>
-        <small class="muted">Cantidad total</small>
-      </article>
-      <article class="card">
+        <div id="kpiEmpty" class="big">—</div>
+        <div class="muted small">Stock neto (altas - consumos)</div>
+      </div>
+
+      <div class="card">
         <h2>Etiquetas</h2>
-        <p class="big" id="labelsCount">—</p>
-        <small class="muted">Cantidad total</small>
-      </article>
+        <div id="kpiLabels" class="big">—</div>
+        <div class="muted small">Stock neto (por estilo)</div>
+      </div>
+
+      <div class="card pie-card">
+        <h2>Etiquetas por estilo</h2>
+        <div class="pie-wrap"><canvas id="labelsPie" width="220" height="220"></canvas></div>
+      </div>
+    </section>
+
+    <div style="height:12px"></div>
+
+    <!-- ÚNICO GRÁFICO: estilos × estados -->
+    <section class="charts-grid">
+      <div class="card chart-wrap">
+        <h2>Producción por estilo y estado</h2>
+        <canvas id="styleStateBars" height="420"></canvas>
+      </div>
     </section>
   </main>
 
-  <!-- Modal: Ingresar latas vacías -->
-  <div id="modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
-    <div class="modal__content">
-      <header class="modal__header">
-        <h3>Ingresar latas vacías</h3>
-        <button id="closeModal" class="icon-btn" aria-label="Cerrar">✕</button>
-      </header>
-      <form id="emptyForm" class="form">
-        <div class="grid">
-          <label class="field">
-            <span>Cantidad (qty)</span>
-            <input type="number" min="1" step="1" name="qty" required placeholder="Ej: 480" />
-          </label>
-          <label class="field">
-            <span>Proveedor (provider)</span>
-            <input type="text" name="provider" required placeholder="Ej: Envapack SRL" />
-          </label>
-          <label class="field">
-            <span>Lote (lot)</span>
-            <input type="text" name="lot" required placeholder="Ej: L-2025-09-A" />
-          </label>
-        </div>
-
-        <footer class="modal__footer">
-          <button type="button" class="btn" id="cancelBtn">Cancelar</button>
-          <button type="submit" class="btn primary" id="submitBtn">Guardar ingreso</button>
-        </footer>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal: Ingresar etiquetas -->
-  <div id="labelsModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
-    <div class="modal__content">
-      <header class="modal__header">
-        <h3>Ingresar etiquetas</h3>
-        <button id="closeLabelsModal" class="icon-btn" aria-label="Cerrar">✕</button>
-      </header>
-      <form id="labelsForm" class="form">
-        <div class="grid">
-          <label class="field">
-            <span>Cantidad (qty)</span>
-            <input type="number" min="1" step="1" name="qty" required placeholder="Ej: 1000" />
-          </label>
-          <label class="field">
-            <span>Proveedor (provider)</span>
-            <input type="text" name="provider" required placeholder="Ej: Imprenta XYZ" />
-          </label>
-          <label class="field">
-            <span>Lote (lot)</span>
-            <input type="text" name="lot" required placeholder="Ej: L-ETI-2025-09" />
-          </label>
-        </div>
-
-        <!-- Bloque compacto: izquierda = toggle + (debajo) campo; derecha vacía -->
-        <div class="grid grid-3 align-start" style="margin-top:8px;">
-          <!-- Columna izquierda apilada -->
-          <div class="col-left">
-            <label class="field inline-check" id="customToggle">
-              <input type="checkbox" name="isCustom" id="isCustomChk" />
-              <span>Es personalizada</span>
-            </label>
-
-            <!-- No personalizada: selector debajo -->
-            <div id="nonCustomFields" class="field">
-              <span>Marca / Estilo (desde "styles")</span>
-              <select id="styleCombo" name="styleCombo" required></select>
-            </div>
-
-            <!-- Personalizada: nombre debajo -->
-            <div id="customFields" class="field" style="display:none;">
-              <span>Nombre (custom)</span>
-              <input type="text" name="name" placeholder="Ej: Edición especial Aniversario" />
-            </div>
-          </div>
-
-          <!-- espacio a la derecha para que no se estire -->
-          <div class="span-2"></div>
-        </div>
-
-
-        <footer class="modal__footer">
-          <button type="button" class="btn" id="cancelLabelsBtn">Cancelar</button>
-          <button type="submit" class="btn primary" id="submitLabelsBtn">Guardar etiquetas</button>
-        </footer>
-      </form>
-    </div>
-  </div>
-
-  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
-
-  <footer class="container muted small" style="text-align:center;margin:32px 0 12px;">
-    <span id="appFooter"></span>
-  </footer>
-
   <script>
-  // Inyectar nombre + versión en el footer
-  document.getElementById("appFooter").textContent =
-    getAppConfig("APP_NAME") + " · v" + getAppConfig("VERSION");
-  </script>   
+  (function(){
+    const WEB_APP_URL = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
 
+    async function callGAS(action, payload){
+      const body = new URLSearchParams();
+      body.set('action', action);
+      body.set('payload', JSON.stringify(payload||{}));
+      const res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+      const text = await res.text();
+      if(!res.ok){ console.error(text); throw new Error(text || ('HTTP_'+res.status)); }
+      return JSON.parse(text);
+    }
+
+    function palette(n){
+      const base = ['#60a5fa','#34d399','#f59e0b','#a78bfa','#f87171','#fbbf24','#22d3ee','#fb7185','#4ade80','#93c5fd','#c084fc','#fda4af'];
+      const out=[]; for(let i=0;i<n;i++) out.push(base[i%base.length]);
+      return out;
+    }
+
+    // ===== KPIs =====
+    async function loadKPIs(){
+      const r = await callGAS('getSummaryCounts', {});
+      if (r && r.ok){
+        document.getElementById('kpiEmpty').textContent  = r.data.emptyCansTotal ?? 0;
+        document.getElementById('kpiLabels').textContent = r.data.labelsTotal ?? 0;
+      }
+    }
+
+    // ===== PIE etiquetas por estilo (stock positivo) =====
+    async function loadLabelsPie(){
+      const r = await callGAS('labelsSummary', {});
+      if (!r || !r.ok) return;
+
+      const sums = new Map();
+      (r.data||[]).forEach(row=>{
+        const est = String(row.estilo||'(sin estilo)');
+        const q   = Number(row.totalQty||0);
+        if (q <= 0) return;
+        sums.set(est, (sums.get(est)||0) + q);
+      });
+
+      const labels = Array.from(sums.keys());
+      const data   = Array.from(sums.values());
+      const ctx = document.getElementById('labelsPie');
+      if (!ctx) return;
+
+      if (ctx._chartInstance) ctx._chartInstance.destroy();
+      ctx._chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: palette(labels.length) }] },
+        options: { maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+      });
+    }
+
+    // ===== ÚNICO CHART: estilos×estado (stacked) con showAlways =====
+    async function loadStyleStateBars(){
+      // 1) Traigo estilos (para showAlways y nombres) y todas las producciones
+      const [stylesR, prodsR] = await Promise.all([
+        callGAS('listStyles', {}),
+        callGAS('listProductions', { page:1, pageSize: 10000 }) // todos
+      ]);
+
+      const styles = (stylesR && stylesR.ok && Array.isArray(stylesR.data)) ? stylesR.data : [];
+      const items  = (prodsR  && prodsR.ok  && prodsR.data && Array.isArray(prodsR.data.items)) ? prodsR.data.items : [];
+
+      // 2) Armo set de estilos a mostrar: todos los que tengan qty>0 en alguna producción
+      //    + todos los showAlways === TRUE
+      const STYLE_KEYS = new Map(); // key -> label a mostrar
+      styles.forEach(s=>{
+        const key = (s.brandId||'') + '|' + (s.styleId||'');
+        const showAlways = (s.showAlways===true) || (String(s.showAlways||'').toUpperCase()==='TRUE');
+        const label = (s.brandName ? (s.brandName+' - ') : '') + (s.name||s.styleId||'');
+        if (!STYLE_KEYS.has(key)) STYLE_KEYS.set(key, {label, showAlways});
+      });
+
+      // 3) Sumo producciones por estilo base (brandId|styleId) y por estado
+      const ESTADOS = ['ENLATADO','PAUSTERIZADO','ETIQUETADO','FINAL'];
+      const acc = {}; // key -> { ENLATADO:n, PAUSTERIZADO:n, ETIQUETADO:n, FINAL:n }
+      items.forEach(rec=>{
+        const key = (rec.brandId||'') + '|' + (rec.styleId||'');
+        if (!acc[key]) acc[key] = { ENLATADO:0, PAUSTERIZADO:0, ETIQUETADO:0, FINAL:0 };
+        const st = String(rec.status||'').toUpperCase();
+        if (acc[key][st] == null) acc[key][st] = 0;
+        acc[key][st] += Number(rec.qty||0);
+        // si el estilo no estaba aún (por si faltara en estilos), lo agrego sin showAlways
+        if (!STYLE_KEYS.has(key)){
+          const label = (rec.brandId?rec.brandId:'') + ' - ' + (rec.styleId||'');
+          STYLE_KEYS.set(key, {label, showAlways:false});
+        }
+      });
+
+      // 4) Filtro final: estilos con datos o con showAlways = TRUE
+      const finalKeys = [];
+      STYLE_KEYS.forEach((meta, key)=>{
+        const hasData = !!acc[key] && ESTADOS.some(st => (acc[key][st]||0) > 0);
+        if (hasData || meta.showAlways) finalKeys.push(key);
+      });
+
+      // 5) Armo datasets stacked
+      const labels = finalKeys.map(k => STYLE_KEYS.get(k).label);
+      const dataByEstado = ESTADOS.map(st => finalKeys.map(k => (acc[k]?.[st]||0)));
+
+      const colors = {
+        ENLATADO:    '#60a5fa',
+        PAUSTERIZADO:'#34d399',
+        ETIQUETADO:  '#f59e0b',
+        FINAL:       '#a78bfa'
+      };
+
+      const datasets = ESTADOS.map(st => ({
+        label: st,
+        data: dataByEstado[ESTADOS.indexOf(st)],
+        backgroundColor: colors[st]
+      }));
+
+      const ctx = document.getElementById('styleStateBars');
+      if (!ctx) return;
+      if (ctx._chartInstance) ctx._chartInstance.destroy();
+      ctx._chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: { legend: { position:'bottom' } },
+          scales: {
+            x: { stacked:true, grid:{ color:'rgba(255,255,255,.06)' } },
+            y: { stacked:true, grid:{ color:'rgba(255,255,255,.06)' } }
+          }
+        }
+      });
+    }
+
+    // INIT
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      try{
+        await Promise.all([ loadKPIs(), loadLabelsPie(), loadStyleStateBars() ]);
+      }catch(e){ console.error(e); }
+    });
+  })();
+  </script>
 </body>
 </html>

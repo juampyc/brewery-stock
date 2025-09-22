@@ -4,25 +4,29 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Movimientos | Brewery Stock</title>
-  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/styles.css?v=2">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <!-- Configuración global -->
   <script src="./js/config.js"></script>
 
   <!-- Script de la página -->
-  <script src="./js/app.js" defer></script>
+  <script src="./js/movements.js" defer></script>
+
 </head>
 <body>
-  <header class="container" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;">
-    <h1 style="margin:0;">📄 Movimientos</h1>
-    <nav style="display:flex;gap:8px;">
-      <a href="index.html" class="btn">⬅ Volver</a>
-    </nav>
-  </header>
+  <!-- Header global -->
+  <div id="site-header"></div>
+  <script src="./js/header.js" defer></script>
 
   <main class="container" style="margin-top:16px;">
     <section class="card">
+      <!-- Filtros activos -->
+      <div id="activeFilters" style="display:none; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0;">
+        <!-- Chip dinámico -->
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
         <div style="display:flex;gap:12px;align-items:center;">
           <label class="field" style="min-width:160px;">
@@ -30,7 +34,12 @@
             <select id="typeFilter">
               <option value="">Todos</option>
               <option value="EMPTY_CANS_ADD">EMPTY_CANS_ADD</option>
+              <option value="EMPTY_CANS_CONS">EMPTY_CANS_CONS</option>
+              <option value="EMPTY_CANS_SCRAP">EMPTY_CANS_SCRAP</option>
               <option value="LABEL_ADD">LABEL_ADD</option>
+              <option value="LABEL_CONS">LABEL_CONS</option>
+              <option value="PROD_FINAL_IN">PROD_FINAL_IN</option>
+              <option value="PROD_SCRAP">PROD_SCRAP</option>
             </select>
           </label>
           <label class="field" style="min-width:120px;">

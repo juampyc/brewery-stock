@@ -61,8 +61,11 @@
   var stylePreview = null;
 
   // GAS web app URL
-  var WEB_APP_URL = (window.GAS_WEB_APP_URL || '');
-
+  var WEB_APP_URL = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
+  // opcional: mostrar nombre y versión en consola (si config está disponible)
+  if (window.getAppConfig) {
+    console.log(getAppConfig("APP_NAME") + " v" + getAppConfig("VERSION"));
+  }
   // In-memory index of styles keyed by option value
   // value: "brandId|styleId" OR "brandId"
   // item: { brandId, styleId, name }
@@ -172,6 +175,75 @@
     if (refreshBtn) refreshBtn.disabled = false;
   }
 
+  async function callGAS(action, payload){
+    const url = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
+    const body = new URLSearchParams();
+    body.set('action', action);
+    body.set('payload', JSON.stringify(payload||{}));
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text);
+    return JSON.parse(text);
+  }
+
+  // ====== CHARTS ======
+  let stockPieChart, prodBarChart;
+
+  function drawStockPie(labelsTotal, emptyTotal){
+    const ctx = document.getElementById('stockPie');
+    if (!ctx) return;
+    if (stockPieChart) stockPieChart.destroy();
+    stockPieChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: ['Etiquetas','Latas vacías'],
+        datasets: [{ data: [labelsTotal, emptyTotal] }]
+      },
+      options: { responsive:true, plugins:{ legend:{ position:'bottom' } } }
+    });
+  }
+
+  function drawProdBar(totals){
+    const ctx = document.getElementById('prodBar');
+    if (!ctx) return;
+    if (prodBarChart) prodBarChart.destroy();
+    const order = ['ENLATADO','PAUSTERIZADO','ETIQUETADO','FINAL'];
+    prodBarChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: order,
+        datasets: [{ label: 'Unidades', data: order.map(k=>totals[k]||0) }]
+      },
+      options: {
+        responsive:true,
+        plugins:{ legend:{ display:false } },
+        scales:{ y:{ beginAtZero:true } }
+      }
+    });
+  }
+
+  async function refreshCharts(){
+    try{
+      const s = await callGAS('getSummaryCounts', {});
+      const labelsTotal = (s && s.ok && s.data) ? (s.data.labelsTotal||0) : 0;
+      const emptyTotal  = (s && s.ok && s.data) ? (s.data.emptyCansTotal||0) : 0;
+      drawStockPie(labelsTotal, emptyTotal);
+    }catch(_){ /* no-op */ }
+
+    try{
+      const r = await callGAS('prodStatusTotals', {});
+      const totals = (r && r.ok && r.data) ? r.data : { ENLATADO:0, PAUSTERIZADO:0, ETIQUETADO:0, FINAL:0 };
+      drawProdBar(totals);
+    }catch(_){ /* no-op */ }
+  }
+
+  // Llamalo cuando cargas el dashboard:
+  document.addEventListener('DOMContentLoaded', function(){
+    // ... tu init existente
+    refreshCharts();
+  });
+
+
   // Submit latas vacías
   if (form) {
     form.addEventListener('submit', async function (ev) {
@@ -204,46 +276,39 @@
   }
 
   // Cargar estilos en combo (brandId + styleId opcional + name)
+  // Cargar estilos en combo (marca/estilo legibles)
   async function loadStylesIntoCombo() {
     if (!styleCombo) return;
-    styleCombo.innerHTML = '<option value=\"\">Cargando...</option>';
+    styleCombo.innerHTML = '<option value="">{ Cargando... }</option>';
     var r = await callGAS('listStyles', {});
     if (!r || !r.ok) {
-      styleCombo.innerHTML = '<option value=\"\">No se pudo cargar</option>';
+      styleCombo.innerHTML = '<option value="">No se pudo cargar</option>';
       return;
     }
     var items = Array.isArray(r.data) ? r.data : [];
     if (!items.length) {
-      styleCombo.innerHTML = '<option value=\"\">Sin datos en styles</option>';
+      styleCombo.innerHTML = '<option value="">Sin datos en styles</option>';
       return;
     }
     STYLE_INDEX = {};
-    var opts = [];
-    opts.push('<option value=\"\">Seleccionar marca/estilo</option>');
+    var opts = ['<option value="">Seleccionar marca/estilo</option>'];
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
-      var brandId = (it && it.brandId != null) ? String(it.brandId) : '';
-      var styleId = (it && it.styleId != null) ? String(it.styleId) : '';
-      var name = (it && it.name != null) ? String(it.name) : '';
+      var brandId = String(it.brandId || '');
+      var styleId = String(it.styleId || '');
+      var name    = String(it.name || '');
+      var brandNm = String(it.brandName || '');
 
-      // value: si hay styleId -> "brandId|styleId", sino solo "brandId"
       var val = styleId ? (brandId + '|' + styleId) : brandId;
+      STYLE_INDEX[val] = { brandId: brandId, styleId: styleId, name: name, brandName: brandNm };
 
-      STYLE_INDEX[val] = { brandId: brandId, styleId: styleId, name: name };
-
-      var labelParts = [];
-      if (brandId) labelParts.push(brandId);
-      if (styleId) labelParts.push(styleId);
-      if (name) labelParts.push(name);
-      var label = labelParts.join(' \u00B7 ');
-
-      opts.push('<option value=\"' + val + '\">' + label + '</option>');
+      var label = [brandNm, name].filter(Boolean).join(' - ');
+      opts.push('<option value="' + val + '">' + label + '</option>');
     }
     styleCombo.innerHTML = opts.join('');
 
-    // preview node
-    ensurePreviewNode();
-    updateStylePreviewAndLot();
+    ensurePreviewNode && ensurePreviewNode();
+    updateStylePreviewAndLot && updateStylePreviewAndLot();
     styleCombo.addEventListener('change', updateStylePreviewAndLot);
     if (nameInput) nameInput.addEventListener('input', updateStylePreviewAndLot);
   }

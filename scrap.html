@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Scrap (mermas)</title>
+  
+  <!-- Estilos -->
+  <link rel="stylesheet" href="./css/styles.css?v=3" />
+
+  <!-- Lib SweetAlert -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Lib Chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Configuración global -->
+  <script src="./js/config.js"></script>
+
+  <!-- Script de página -->
+  <script src="./js/scrap.js"></script>
+  
+  <style>
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width: 760px){ .grid-2{grid-template-columns:1fr} }
+    .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);padding:6px 10px;border-radius:999px;cursor:pointer}
+    .pill input{accent-color:var(--primary)}
+    .muted{color:var(--muted)}
+    .knum{font-weight:700}
+  </style>
+</head>
+<body>
+  <!-- Header global -->
+  <div id="site-header"></div>
+  <script src="./js/header.js" defer></script>
+  <main class="container">
+
+    <div class="card" style="max-width:900px">
+      <h2>Nuevo scrap</h2>
+
+      <form id="scrapForm">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <label class="pill">
+            <input type="radio" name="source" value="EMPTY" checked>
+            <span>🥫 Latas vacías</span>
+          </label>
+          <label class="pill">
+            <input type="radio" name="source" value="PROD">
+            <span>🛠️ Producción</span>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <div id="prodPick" style="display:none">
+            <label>Lote de producción
+              <select id="prodSel" name="prodId"></select>
+            </label>
+            <div class="muted small" id="prodAvail" style="margin-top:4px">Disponible: —</div>
+          </div>
+
+          <div>
+            <label>Cantidad a descartar</label>
+            <input type="number" min="1" step="1" id="scrapQty" name="qty" required>
+            <div class="muted small" id="emptyAvail" style="margin-top:4px;display:none">Disponible: —</div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" type="submit">🧹 Guardar scrap</button>
+          <button class="btn ghost" type="button" id="reloadMovs">↻ Refrescar listado</button>
+        </div>
+      </form>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <h2>Historial de scraps</h2>
+        <div class="muted small">Últimos movimientos</div>
+      </div>
+      <div style="overflow:auto">
+        <table class="table" id="scrapTable">
+          <thead>
+            <tr>
+              <th>ID</th><th>Tipo</th><th>Ref</th><th>Cant.</th><th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="5" style="text-align:center;padding:16px">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>
