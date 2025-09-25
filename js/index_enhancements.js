@@ -32,7 +32,6 @@
     var trio = $('#topRow');
     if (!trio) return;
     var cards = $all('.card', trio);
-    // compacta primero y tercero (latas y etiquetas) por pedido original
     if (cards[0]) cards[0].classList.add('compact');
     if (cards[2]) cards[2].classList.add('compact');
   }
@@ -74,23 +73,19 @@
     var main = $('main.container') || $('main');
     if (!main) return;
 
-    // Detectar 3 cards: Latas vacías, Estados, Etiquetas
     var latas = findCardByTitle('Latas vacías') || $all('main .card')[0];
     var states = $('#prodStatesCard');
     var etiquetas = findCardByTitle('Etiquetas');
 
     if (!latas || !states || !etiquetas) return;
 
-    // Crear wrapper grid
     var wrap = document.createElement('div');
     wrap.id = 'topRow';
     wrap.className = 'top-row';
 
-    // Insertar wrapper antes del primero de los tres
     var anchor = latas;
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
 
-    // Mover cards dentro del wrapper en orden
     wrap.appendChild(latas);
     wrap.appendChild(states);
     wrap.appendChild(etiquetas);
@@ -117,7 +112,6 @@
       '</div>'
     ].join('');
 
-    // Insertar temporalmente al inicio; después buildTopRowEqual lo recoloca
     var firstCard = $all('main .card')[0];
     if (firstCard && firstCard.parentNode) firstCard.parentNode.insertBefore(sec, firstCard);
     else container.appendChild(sec);
@@ -146,7 +140,6 @@
     }catch(err){ console.error(err); }
   }
 
-  // ==== Chart.js plugins ====
   function registerBarValuePlugin(){
     if (!window.Chart) return;
     var plugin = {
@@ -200,7 +193,12 @@
           if (!ds) return;
           ds.forEach(function(dset){
             var label = (dset.label || '').toString().trim().toUpperCase();
-            var col = STATE_COLORS[label];
+            var col = {
+              'ENLATADO':     '#1f77b4',
+              'PAUSTERIZADO': '#ff7f0e',
+              'ETIQUETADO':   '#2ca02c',
+              'FINAL':        '#d62728'
+            }[label];
             if (!col) return;
             if (Array.isArray(dset.backgroundColor)){
               dset.backgroundColor = dset.backgroundColor.map(function(){ return col; });
