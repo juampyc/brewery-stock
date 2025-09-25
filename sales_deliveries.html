@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entregas | Brewery Stock</title>
+
+  <!-- Estilos globales del proyecto -->
+  <link rel="stylesheet" href="css/styles.css?v=2">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Configuración global -->
+  <script src="./js/config.js"></script>
+
+  <!-- Script de la página -->
+  <script defer src="./js/sales_deliveries.js"></script>
+</head>
+<body>
+  <!-- Header global -->
+  <div id="site-header"></div>
+  <script src="./js/header.js" defer></script>
+
+  <main class="container" style="margin-top:16px;">
+
+    <section class="card">
+      <div class="flex" style="align-items:center; gap:12px;">
+        <h2 style="margin:0;">Entregas</h2>
+        <div class="spacer"></div>
+        <button id="refreshBtn" class="btn">↻ Actualizar</button>
+      </div>
+    </section>
+
+    <section id="remitosContainer" style="display:grid; gap:12px;"></section>
+
+    <section class="card" style="margin-top:16px;">
+      <div class="flex" style="align-items:center; gap:12px;">
+        <h3 style="margin:0;">Remitos entregados</h3>
+        <div class="spacer"></div>
+      </div>
+      <div style="overflow:auto; margin-top:12px;">
+        <table class="table" id="deliveredTable">
+          <thead>
+            <tr>
+              <th>Remito</th>
+              <th>Cliente</th>
+              <th>Ítems</th>
+              <th>Cant.</th>
+              <th>Asignado</th>
+              <th>Por</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="6" style="text-align:center;padding:18px;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <div class="flex" style="align-items:center; gap:12px;">
+        <h3 style="margin:0;">Detalle por marca/estilo (entregado)</h3>
+        <div class="spacer"></div>
+      </div>
+      <div style="overflow:auto; margin-top:12px;">
+        <table class="table" id="deliveredItemsTable">
+          <thead>
+            <tr>
+              <th>Marca</th>
+              <th>Estilo</th>
+              <th>U.M.</th>
+              <th>Remitos</th>
+              <th>Cant. total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="text-align:center;padding:18px;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

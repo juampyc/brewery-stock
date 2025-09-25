@@ -3,13 +3,14 @@
   'use strict';
 
   const NAV = [
-    { href: 'index.html',        label: 'Dashboard',   icon: '🏠' },
-    { href: 'production.html',   label: 'Producción',  icon: '🛠️' },
-    { href: 'empty_cans.html',        label: 'Latas',       icon: '🥫' },
-    { href: 'labels.html',       label: 'Etiquetas',   icon: '🏷️' },
-    { href: 'movements.html',    label: 'Movimientos', icon: '📜' },
-    { href: 'styles_new.html',   label: 'Nuevo estilo',icon: '🎨' },
-    { href: 'scrap.html',        label: 'Scrap',       icon: '🧹' },
+    { href: 'index.html',            label: 'Dashboard',    icon: '🏠' },
+    { href: 'production.html',       label: 'Producción',   icon: '🛠️' },
+    { href: 'empty_cans.html',       label: 'Latas',        icon: '🥫' },
+    { href: 'labels.html',           label: 'Etiquetas',    icon: '🏷️' },
+    { href: 'movements.html',        label: 'Movimientos',  icon: '📜' },
+    { href: 'sales_deliveries.html', label: 'Entregas',     icon: '🚚' },
+    { href: 'styles_new.html',       label: 'Nuevo estilo', icon: '🎨' },
+    { href: 'scrap.html',            label: 'Scrap',        icon: '🧹' }
   ];
 
   function renderHeader() {
@@ -37,4 +38,3 @@
 
   document.addEventListener('DOMContentLoaded', renderHeader);
 })();
-
