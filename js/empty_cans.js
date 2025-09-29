@@ -2,217 +2,309 @@
 (function(){
   'use strict';
 
-  const WEB_APP_URL = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
+  // ------- helpers -------
+  function qs(sel, root){ return (root||document).querySelector(sel); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function on(el, ev, fn){ el && el.addEventListener(ev, fn, false); }
+  function fmtInt(n){ n = Number(n||0) || 0; return n.toString(); }
+  function sb(){ if(!window.SB) throw new Error('Supabase client no inicializado'); return window.SB; }
 
-  function $(sel, el){ if(!el) el=document; return el.querySelector(sel); }
-  function TOAST(icon, title){
-    return Swal.fire({ toast:true, position:'top-end', icon, title, showConfirmButton:false, timer:2000, timerProgressBar:true });
-  }
-  function short(v){ return v ? String(v).substring(0,8) : ''; }
-  function fmtDate(dateStr){
-    if(!dateStr) return '';
-    const d = new Date(dateStr);
-    if(isNaN(d.getTime())) return dateStr;
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const yy = String(d.getFullYear()).slice(-2);
-    const hh = String(d.getHours()).padStart(2,'0');
-    const mi = String(d.getMinutes()).padStart(2,'0');
-    return `${dd}/${mm}/${yy} ${hh}:${mi}`;
-  }
-
-  async function callGAS(action, payload){
-    const body = new URLSearchParams();
-    body.set('action', action);
-    body.set('payload', JSON.stringify(payload||{}));
-    const res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
-    const text = await res.text();
-    if(!res.ok) return { ok:false, error:'HTTP_'+res.status, raw:text };
-    try { return JSON.parse(text); } catch(e){ return { ok:false, error:'INVALID_JSON', raw:text }; }
+  function waitForSB(timeoutMs){
+    return new Promise(function(resolve, reject){
+      var t0 = Date.now();
+      (function spin(){
+        if (window.SB && window.SBData){ return resolve(); }
+        if (Date.now() - t0 > (timeoutMs||6000)) return reject(new Error('SB timeout'));
+        setTimeout(spin, 60);
+      })();
+    });
   }
 
-  // DOM
-  const totalEl   = $('#emptyCansTotal');
-  const tblBody   = $('#emptyTable tbody');
-  const pageSizeSel = $('#pageSize');
-  const refreshBtn  = $('#refreshBtn');
-  const pageInfo  = $('#pageInfo');
-  const prevBtn   = $('#prevPage');
-  const nextBtn   = $('#nextPage');
+  function toast(title, icon){
+    icon = icon || 'success';
+    if (window.Swal) {
+      return Swal.fire({
+        toast: true, position: 'top-end', icon,
+        title: String(title||'Listo'),
+        showConfirmButton: false, timer: 1800, timerProgressBar: true
+      });
+    }
+    alert(String(title||'OK'));
+  }
 
-  const addBtn    = $('#addEmptyBtn');
-  const modal     = $('#modal');
-  const backdrop  = $('#backdrop');
-  const form      = $('#emptyForm');
-  const cancelBtn = $('#cancelBtn');
-  const submitBtn = $('#submitBtn');
-
-  const state = {
+  // ------- state -------
+  var STATE = {
     page: 1,
-    pageSize: Number((pageSizeSel && pageSizeSel.value) || 20),
+    pageSize: 20,
     total: 0,
-    // Para traer todas las operaciones de latas vacías:
-    typePrefix: 'EMPTY_CANS_',
-    // Para cargar inicialmente la última página (más recientes arriba)
-    firstLoadJumped: false
+    items: [],
+    byId: {}
   };
 
-  // ====== KPI ======
-  async function loadKPI(){
-    const r = await callGAS('getSummaryCounts', {});
-    if (r && r.ok){
-      totalEl.textContent = r.data && typeof r.data.emptyCansTotal === 'number'
-        ? r.data.emptyCansTotal
-        : 0;
-    }
+  // ------- rendering -------
+  function renderTotals(n){
+    var el = qs('#emptyCansTotal');
+    if (el) el.textContent = fmtInt(n);
   }
 
-  // ====== Tabla Movimientos (solo EMPTY_CANS_*) ======
-  function renderRows(items){
-    if (!tblBody) return;
-    if (!items || !items.length){
-      tblBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;">Sin datos</td></tr>';
-      return;
-    }
-    const out = [];
-    for (const it of items){
-      const fullId  = it.id || '';
-      const fullRef = it.refId || '';
-      out.push(
-        '<tr>',
-          '<td><span title="', fullId.replace(/"/g,'&quot;'), '">', short(fullId), '</span></td>',
-          '<td>', (it.type||''), '</td>',
-          '<td><span title="', fullRef.replace(/"/g,'&quot;'), '">', short(fullRef), '</span></td>',
-          '<td>', (it.qty!=null?it.qty:''), '</td>',
-          '<td>', (it.provider||''), '</td>',
-          '<td>', (it.lot||''), '</td>',
-          '<td>', fmtDate(it.dateTime||''), '</td>',
-        '</tr>'
-      );
-    }
-    tblBody.innerHTML = out.join('');
+  // ----- FECHA AR (UTC-3) -----
+  function fmtDateAR(iso){
+    if (!iso) return '';
+    try{
+      const d = new Date(iso);
+      const parts = new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      }).formatToParts(d).reduce((a,p)=>{ a[p.type]=p.value; return a; },{});
+      return `${parts.day}-${parts.month}-${parts.year} ${parts.hour}:${parts.minute}`;
+    }catch(_){ return iso; }
   }
 
-  function updatePager(){
-    const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if (state.page > pages) state.page = pages;
-    if (pageInfo) pageInfo.textContent = `Página ${state.page} de ${pages} (${state.total} registros)`;
-    if (prevBtn) prevBtn.disabled = (state.page <= 1);
-    if (nextBtn) nextBtn.disabled = (state.page >= pages);
+  // ----- RENDER TABLA (5 columnas) -----
+  function renderTable(){
+    var tbody = qs('#emptyTable tbody');
+    if (!tbody) return;
+
+    if (!STATE.items.length){
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;">Sin datos</td></tr>';
+    } else {
+      tbody.innerHTML = STATE.items.map(function(r){
+        var dt = r.date_time || r.dateTime || '';
+        return '<tr>'
+          + '<td>'+ (r.id||'') +'</td>'
+          + '<td>'+ fmtInt(r.qty) +'</td>'
+          + '<td>'+ (r.provider||'') +'</td>'
+          + '<td>'+ (r.lot||'') +'</td>'
+          + '<td>'+ fmtDateAR(dt) +'</td>'
+          + '</tr>';
+      }).join('');
+    }
+
+    var pages = Math.max(1, Math.ceil(STATE.total / STATE.pageSize));
+    var pageInfo = qs('#pageInfo');
+    if (pageInfo) pageInfo.textContent = 'Página '+STATE.page+' de '+pages+' ('+STATE.total+' registros)';
+    var prev = qs('#prevPage'), next = qs('#nextPage');
+    if (prev) prev.disabled = (STATE.page<=1);
+    if (next) next.disabled = (STATE.page>=pages);
+  }
+
+  // === Helpers modal + toast (igual que producción) ===
+  function showModal(id){
+    var m = document.getElementById(id), bd = document.getElementById('backdrop');
+    if (!m) return;
+    m.removeAttribute('inert');
+    m.setAttribute('aria-hidden','false');
+    bd && bd.classList.add('show');
+    setTimeout(function(){
+      var f = m.querySelector('input,select,button,textarea,[tabindex]');
+      if (f) try { f.focus(); } catch(_){}
+    }, 0);
+  }
+
+  function hideModal(id){
+    var m = document.getElementById(id), bd = document.getElementById('backdrop');
+    // mover foco ANTES de aria-hidden para evitar warning de accesibilidad
+    if (hideModal._opener && document.body.contains(hideModal._opener)) {
+      try { hideModal._opener.focus(); } catch(_){}
+    } else if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+    if (m){
+      m.setAttribute('aria-hidden','true');
+      m.setAttribute('inert','');
+    }
+    bd && bd.classList.remove('show');
+  }
+  function setLastOpener(btn){ hideModal._opener = btn; }
+
+  // Toasts arriba a la derecha
+  function toastOK(txt){ return window.Swal && Swal.fire({ icon:'success', title: txt||'OK', toast:true, position:'top-end', timer:1800, showConfirmButton:false }); }
+  function toastERR(txt){ return window.Swal && Swal.fire({ icon:'error', title: txt||'Error', toast:true, position:'top-end', timer:2200, showConfirmButton:false }); }
+
+  // === Wire-up modal ===
+  document.addEventListener('DOMContentLoaded', function(){
+
+    // Botón abrir (admite ambos ids por compatibilidad)
+    ['#newEmptyBtn','#addEmptyBtn'].forEach(function(sel){
+      var btn = document.querySelector(sel);
+      if (btn) btn.addEventListener('click', function(e){
+        setLastOpener(e.currentTarget);
+        // detecto id del modal presente
+        var modalId = document.getElementById('newEmptyModal') ? 'newEmptyModal'
+                    : (document.getElementById('addEmptyModal') ? 'addEmptyModal' : null);
+        if (modalId) showModal(modalId);
+      }, false);
+    });
+
+    // Cerrar/cancelar
+    var closeBtn = document.getElementById('closeNewEmpty') || document.getElementById('closeAddEmpty');
+    if (closeBtn) closeBtn.addEventListener('click', function(){
+      var id = document.getElementById('newEmptyModal') ? 'newEmptyModal' : 'addEmptyModal';
+      hideModal(id);
+    }, false);
+
+    var cancelBtn = document.getElementById('cancelNewEmpty') || document.getElementById('cancelAddEmpty');
+    if (cancelBtn) cancelBtn.addEventListener('click', function(){
+      var id = document.getElementById('newEmptyModal') ? 'newEmptyModal' : 'addEmptyModal';
+      hideModal(id);
+    }, false);
+
+    // Submit (admite ambos ids)
+    var form = document.getElementById('newEmptyForm') || document.getElementById('addEmptyForm');
+    if (form) form.addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      try{
+        var fd = new FormData(form);
+        var qty = Number(fd.get('qty')||0) || 0;
+        var provider = (fd.get('provider')||'').toString().trim();
+        var lot = (fd.get('lot')||'').toString().trim();
+        if (!(qty>0) || !provider || !lot) {
+          return window.Swal ? Swal.fire({icon:'info', title:'Completá todos los campos', toast:true, position:'top-end', timer:1800, showConfirmButton:false}) : alert('Completá todos los campos');
+        }
+
+        await window.SBData.addEmptyCans({ qty, provider, lot });
+
+        // limpiar form y cerrar
+        form.reset();
+        var id = document.getElementById('newEmptyModal') ? 'newEmptyModal' : 'addEmptyModal';
+        hideModal(id);
+
+        // refrescar lista (asumo tenés loadPage(); si se llama distinto, usá tu función)
+        if (typeof loadPage === 'function') { await loadPage(); }
+
+        toastOK('Latas registradas');
+
+      }catch(err){
+        console.error('addEmptyCans', err);
+        toastERR('No pude guardar');
+      }
+    }, false);
+
+  }, false);
+
+
+
+  // ------- data loaders -------
+  async function loadTotals(){
+    var n = 0;
+    try{
+      // usa cache del dashboard si está; si no, cae a summary
+      if (window.SBData.getEmptyCansNet){
+        n = await window.SBData.getEmptyCansNet();
+      }else{
+        var s = await window.SBData.getSummaryCounts();
+        n = Number((s && s.emptyCansTotal) || 0);
+      }
+    }catch(_){}
+    renderTotals(n);
+  }
+
+  async function loadList(){
+    // Leemos directamente de la tabla empty_cans con paginado
+    var from = (STATE.page-1) * STATE.pageSize;
+    var to   = from + STATE.pageSize - 1;
+
+    const { data, error, count } = await sb()
+      .from('empty_cans')
+      .select('id, qty, provider, lot, date_time', { count: 'exact' })
+      .order('date_time', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    STATE.items = (data||[]).map(function(r){
+      return {
+        id: String(r.id||''),
+        qty: Number(r.qty||0)||0,
+        provider: r.provider||'',
+        lot: r.lot||'',
+        date_time: r.date_time || null
+      };
+    });
+    STATE.total = Number(count||STATE.items.length);
+    STATE.byId = {}; STATE.items.forEach(function(it){ STATE.byId[it.id] = it; });
+
+    renderTable();
   }
 
   async function loadPage(){
-    if (refreshBtn) refreshBtn.disabled = true;
+    await waitForSB(7000);
 
-    // Si es la primera vez, salto a la última página para ver "lo más reciente"
-    if (!state.firstLoadJumped){
-      const r0 = await callGAS('listMovements', { page: 1, pageSize: state.pageSize, typePrefix: state.typePrefix });
-      if (r0 && r0.ok){
-        state.total = r0.data.total || 0;
-        state.page  = Math.max(1, Math.ceil(state.total / state.pageSize));
-        state.firstLoadJumped = true;
+    var sel = qs('#pageSize');
+    STATE.pageSize = sel ? (Number(sel.value||20)||20) : 20;
+
+    await Promise.all([ loadTotals(), loadList() ]);
+  }
+
+  // ------- modal helpers -------
+  function showModal(id){
+    var m = qs('#'+id); var bd = qs('#backdrop');
+    if (!m) return;
+    m.setAttribute('aria-hidden', 'false');
+    if (bd) bd.classList.add('show');
+    var f = m.querySelector('input,select,button,textarea,[tabindex]');
+    if (f) setTimeout(function(){ try{ f.focus(); }catch(_){ } }, 0);
+  }
+  function hideModal(id){
+    var m = qs('#'+id); var bd = qs('#backdrop');
+    if (!m) return;
+    // Importante: limpiar focus ANTES de aria-hidden (evita warning de aria-hidden)
+    try{ if (document.activeElement && m.contains(document.activeElement)){ document.activeElement.blur(); } }catch(_){}
+    m.setAttribute('aria-hidden', 'true');
+    if (bd) bd.classList.remove('show');
+  }
+
+  // ------- wire up -------
+  document.addEventListener('DOMContentLoaded', function(){
+    // Refresh
+    on(qs('#refreshBtn'), 'click', function(){ loadPage(); });
+
+    // Page size
+    on(qs('#pageSize'), 'change', function(){
+      STATE.page = 1;
+      STATE.pageSize = Number(this.value||20)||20;
+      loadPage();
+    });
+
+    // Pager
+    on(qs('#prevPage'), 'click', function(){
+      if (STATE.page>1){ STATE.page--; loadPage(); }
+    });
+    on(qs('#nextPage'), 'click', function(){
+      var pages = Math.max(1, Math.ceil(STATE.total / STATE.pageSize));
+      if (STATE.page < pages){ STATE.page++; loadPage(); }
+    });
+
+    // Modal alta
+    on(qs('#addEmptyBtn'), 'click', function(){ showModal('emptyModal'); });
+    on(qs('#closeEmpty'), 'click', function(){ hideModal('emptyModal'); });
+    on(qs('#cancelEmpty'), 'click', function(){ hideModal('emptyModal'); });
+
+    on(qs('#emptyForm'), 'submit', async function(ev){
+      ev.preventDefault();
+      try{
+        var fd = new FormData(ev.currentTarget);
+        var qty = Number(fd.get('qty')||0)||0;
+        var provider = (fd.get('provider')||'').toString().trim();
+        var lot = (fd.get('lot')||'').toString().trim();
+
+        if (!(qty>0) || !provider || !lot){
+          return toast('Completá cantidad, proveedor y lote', 'info');
+        }
+
+        await window.SBData.addEmptyCans({ qty, provider, lot });
+        hideModal('emptyModal');
+        toast('Alta registrada');
+        await loadPage();
+      }catch(err){
+        console.error('[empty_cans:add]', err);
+        toast('No pude guardar el movimiento', 'error');
       }
-    }
-
-    // ahora traigo la página solicitada
-    const r = await callGAS('listMovements', {
-      page: state.page,
-      pageSize: state.pageSize,
-      typePrefix: state.typePrefix
     });
 
-    if (r && r.ok){
-      state.total = r.data.total || 0;
-
-      // Queremos “más recientes arriba”: como el backend devuelve del más viejo al más nuevo,
-      // invertimos el orden SOLO dentro de la página y recorremos desde la última página hacia atrás.
-      const items = Array.isArray(r.data.items) ? r.data.items.slice().reverse() : [];
-      renderRows(items);
-      updatePager();
-    } else {
-      renderRows([]);
-      TOAST('error', 'No se pudo cargar');
-    }
-
-    if (refreshBtn) refreshBtn.disabled = false;
-  }
-
-  // ====== Modal ======
-  function openModal(){
-    if (form) form.reset();
-    if (submitBtn) submitBtn.disabled = false;
-    if (modal) modal.setAttribute('aria-hidden','false');
-    if (backdrop) backdrop.setAttribute('aria-hidden','false');
-  }
-  function closeModal(){
-    if (modal) modal.setAttribute('aria-hidden','true');
-    // si no hay otros modales abiertos, cierro backdrop
-    const anyOpen = document.querySelector('.modal[aria-hidden="false"]');
-    if (!anyOpen && backdrop) backdrop.setAttribute('aria-hidden','true');
-  }
-
-  // ====== Bindings ======
-  document.addEventListener('DOMContentLoaded', async function(){
-    // KPI
-    loadKPI();
-
-    // Botón abrir modal
-    if (addBtn) addBtn.addEventListener('click', openModal);
-    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-    if (backdrop) backdrop.addEventListener('click', closeModal);
-    document.addEventListener('keydown', (ev)=>{ if(ev.key==='Escape') closeModal(); });
-
-    // Submit alta
-    if (form){
-      form.addEventListener('submit', async function(ev){
-        ev.preventDefault();
-        if (!submitBtn || submitBtn.disabled) return;
-        submitBtn.disabled = true;
-
-        const fd = new FormData(form);
-        const qty = Number(fd.get('qty'));
-        const provider = String(fd.get('provider')||'').trim();
-        const lot = String(fd.get('lot')||'').trim();
-        if (!qty || !provider || !lot){
-          TOAST('warning','Completá todos los campos'); submitBtn.disabled=false; return;
-        }
-
-        const resp = await callGAS('addEmptyCans', { qty, provider, lot });
-        if (resp && resp.ok){
-          TOAST('success','Ingreso registrado');
-          closeModal();
-          await loadKPI();
-
-          // tras grabar, saltá a la última página y recargá
-          state.firstLoadJumped = false;
-          await loadPage();
-        } else {
-          TOAST('error','No se pudo registrar');
-          submitBtn.disabled = false;
-        }
-      });
-    }
-
-    // Paginación (recordá que estamos navegando “hacia atrás” en el tiempo)
-    if (prevBtn) prevBtn.addEventListener('click', async function(){
-      // prev = ir a una página más reciente (hacia el final)
-      const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-      if (state.page < pages){ state.page++; await loadPage(); }
-    });
-    if (nextBtn) nextBtn.addEventListener('click', async function(){
-      // next = ir a una página más vieja (hacia el inicio)
-      if (state.page > 1){ state.page--; await loadPage(); }
-    });
-
-    if (refreshBtn) refreshBtn.addEventListener('click', async function(){ await loadPage(); });
-    if (pageSizeSel) pageSizeSel.addEventListener('change', async function(){
-      state.pageSize = Number(pageSizeSel.value) || 20;
-      state.firstLoadJumped = false; // recalcular “última página” con el nuevo tamaño
-      await loadPage();
-    });
-
-    // Carga inicial
-    await loadPage();
+    // Init
+    loadPage().catch(function(e){ console.error('empty_cans load', e); });
   });
 
 })();

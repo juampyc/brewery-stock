@@ -1,451 +1,375 @@
 // js/production.js
-(function () {
+(function(){
   'use strict';
 
-  var WEB_APP_URL =
-    window.GAS_WEB_APP_URL ||
-    (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) ||
-    '';
-
-  function $(sel, el) { return (el || document).querySelector(sel); }
-  function TOAST(icon, title) {
-    return Swal.fire({
-      toast: true, position: 'top-end', icon, title,
-      showConfirmButton: false, timer: 2000, timerProgressBar: true
-    });
-  }
-  function short(v) { return v ? String(v).substring(0, 8) : ''; }
-
-  // Tabla + pager
-  var tbl = $('#prodTable tbody');
-  var pagerInfo = $('#pageInfo'), prevBtn = $('#prevPage'), nextBtn = $('#nextPage');
-  var refreshBtn = $('#refreshBtn'), pageSizeSel = $('#pageSize');
-  var state = { page: 1, pageSize: 20, total: 0 };
-
-  // Mapa estilos legibles
-  var STYLE_MAP = {}; // key: brandId|styleId -> { brandName, name }
-
-  // ===== Modales =====
-  var backdrop;
-
-  // Nueva producción
-  var newBtn, newModal, closeNewBtn, cancelNewBtn, newForm, submitNewBtn, prodStyleCombo, prodStylePreview;
-
-  // Etiquetado (nuevo modal)
-  var labelModal, closeLabelBtn, cancelLabelBtn, labelForm, submitLabelBtn;
-  var sameStyleNameEl, sameStyleInfoEl, customGroupEl, customSelectEl;
-
-  // Guardamos contexto de la producción que se está etiquetando
-  var CURRENT_PROD = { id: '', brandId: '', styleId: '', qty: 0 };
-
-  function modalOpen(modal){
-    if(!modal) return;
-    modal.setAttribute('aria-hidden','false');
-    if (backdrop) backdrop.setAttribute('aria-hidden','false');
-  }
-  function modalClose(modal){
-    if(!modal) return;
-    modal.setAttribute('aria-hidden','true');
-    var anyOpen = document.querySelector('.modal[aria-hidden="false"]');
-    if (!anyOpen && backdrop) backdrop.setAttribute('aria-hidden','true');
-  }
-
-  // ===== GAS =====
-  async function callGAS(action, payload){
-    var body = new URLSearchParams();
-    body.set('action', action);
-    body.set('payload', JSON.stringify(payload||{}));
-    try{
-      var res = await fetch(WEB_APP_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body
-      });
-      var text = await res.text();
-      if (!res.ok) return { ok:false, error:'HTTP_'+res.status, raw:text };
-      try { return JSON.parse(text); } catch(e){ return { ok:false, error:'INVALID_JSON', raw:text }; }
-    }catch(err){ return { ok:false, error:String(err) }; }
-  }
-
-  async function loadStyleMap(){
-    var r = await callGAS('listStyles', {});
-    STYLE_MAP = {};
-    if (r && r.ok && Array.isArray(r.data)){
-      r.data.forEach(function(it){
-        var k = (it.brandId||'') + '|' + (it.styleId||'');
-        STYLE_MAP[k] = { brandName: it.brandName||'', name: it.name||'' };
-      });
-    }
-  }
-
-  // ===== Select estilos para "Nueva producción" =====
-  async function loadStylesForNew(){
-    if(!prodStyleCombo) return;
-    prodStyleCombo.innerHTML = '<option value="">Cargando...</option>';
-    var r = await callGAS('listStyles', {});
-    if (!r || !r.ok){ prodStyleCombo.innerHTML = '<option value="">No se pudo cargar</option>'; return; }
-    var items = Array.isArray(r.data)? r.data : [];
-    if (!items.length){ prodStyleCombo.innerHTML = '<option value="">Sin datos</option>'; return; }
-
-    var opts = ['<option value="">Seleccionar marca/estilo</option>'];
-    for (var i=0;i<items.length;i++){
-      var it = items[i];
-      var val = (it.brandId||'') + '|' + (it.styleId||'');
-      var label = [it.brandName||'', it.name||''].filter(Boolean).join(' - ');
-      opts.push('<option value="'+val+'">'+label+'</option>');
-    }
-    prodStyleCombo.innerHTML = opts.join('');
-    prodStyleCombo.addEventListener('change', function(){
-      var v = prodStyleCombo.value;
-      if (prodStylePreview){
-        if (!v) { prodStylePreview.textContent = ''; return; }
-        var parts = v.split('|'); var k = (parts[0]||'') + '|' + (parts[1]||'');
-        var it = STYLE_MAP[k] || {};
-        prodStylePreview.textContent = it.brandName && it.name
-          ? ('Seleccionado: ' + it.brandName + ' · ' + it.name)
-          : '';
-      }
+  // ---- helpers ----
+  function qs(sel, root){ return (root||document).querySelector(sel); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function on(el, ev, fn){ el && el.addEventListener(ev, fn, false); }
+  function fmtInt(n){ n = Number(n||0) || 0; return n.toString(); }
+  function waitForSB(timeoutMs){
+    return new Promise(function(resolve, reject){
+      var t0 = Date.now();
+      (function spin(){
+        if (window.SB && window.SBData){ return resolve(); }
+        if (Date.now() - t0 > (timeoutMs||5000)) return reject(new Error('SB timeout'));
+        setTimeout(spin, 60);
+      })();
     });
   }
 
-  // ===== Custom labels loader (solo nombres personalizados con stock/independiente del stock) =====
-  async function loadCustomLabelNames(){
-    // Usamos labelsSummary y tomamos los que vienen como "Personalizada"
-    var r = await callGAS('labelsSummary', {});
-    var names = [];
-    if (r && r.ok && Array.isArray(r.data)){
-      r.data.forEach(function(row){
-        if ((row.marca||'').toLowerCase() === 'personalizada' && row.estilo){
-          names.push(row.estilo);
-        }
-      });
+  // ---- state ----
+  var STATE = {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    items: [],
+    styleMap: {},   // key "brandId|styleId" -> { brandId, styleId, name, color, brandName }
+    brandMap: {},   // id -> name
+    byId: {},       // id -> item (para acciones)
+  };
+
+  // ---- modals ----
+  function showModal(id){
+    var m = qs('#'+id); var bd = qs('#backdrop');
+    if (!m) return;
+    m.removeAttribute('inert');
+    m.setAttribute('aria-hidden','false');
+    if (bd) bd.classList.add('show');
+    // focus primer elemento
+    var f = m.querySelector('input,select,button,textarea,[tabindex]');
+    if (f) setTimeout(function(){ try{ f.focus(); }catch(_){ } }, 0);
+  }
+
+  function hideModal(id){
+    var m = qs('#'+id); var bd = qs('#backdrop');
+    if (!m) return;
+    // Evita warning de aria-hidden con foco retenido
+    if (m.contains(document.activeElement)) { try { document.activeElement.blur(); } catch(_){ } }
+    m.setAttribute('aria-hidden','true');
+    m.setAttribute('inert',''); // bloquea foco/inputs mientras está oculto
+    if (bd) bd.classList.remove('show');
+
+    if (hideModal._lastOpener && document.body.contains(hideModal._lastOpener)){
+      try{ hideModal._lastOpener.focus(); }catch(_){}
     }
-    // Si no hubiese ninguna personalizada en stock, al menos dejamos seleccionar algo manual?
-    // Por ahora solo mostramos las existentes:
-    names.sort(function(a,b){ return a.localeCompare(b); });
-    return names;
   }
 
-  // ===== Render listado =====
-  function resolveNames(brandId, styleId, labelName, status, labelStyleId){
-    var k  = (brandId||'') + '|' + (styleId||'');
-    var bn = (STYLE_MAP[k] && STYLE_MAP[k].brandName) || brandId || '';
-    var baseStyle = (STYLE_MAP[k] && STYLE_MAP[k].name) || styleId || '';
+  function setLastOpener(btn){ hideModal._lastOpener = btn; }
 
-    var isCustom = !!labelName && !labelStyleId; // personalizada si no hay styleId
-    var sn = baseStyle;
-
-    if (isCustom) {
-      // Mostrar: Estilo base | Nombre etiqueta personalizada
-      sn = (baseStyle ? (baseStyle + ' | ') : '') + labelName;
-    } else if ((status||'').toUpperCase() === 'ETIQUETADO' && labelName) {
-      // Mismo estilo (no personalizada): si querés priorizar el nombre de la etiqueta
-      sn = labelName;
-    }
-
-    return { brandName: bn, styleName: sn };
+  // ---- rendering ----
+  function statusPill(st){
+    var s = String(st||'').toUpperCase();
+    var cls = 'pill status ' + s.toLowerCase(); // ej: "pill status enlatado"
+    var nice = s.charAt(0)+s.slice(1).toLowerCase();
+    return '<span class="'+cls+'">'+nice+'</span>';
   }
-
-
-  function badge(status){
-    var s = (status||'').toUpperCase();
-    return '<span class="badge '+s+'"><span class="dot"></span>'+s+'</span>';
+  function nameFor(brandId, styleId){
+    var k = String(brandId||'') + '|' + String(styleId||'');
+    var st = STATE.styleMap[k];
+    return { brand: STATE.brandMap[String(brandId)||'']||'', style: st ? (st.name||'') : '' };
   }
-
-  function renderRows(items){
-    if (!items || !items.length){
-      tbl.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:18px;">Sin datos</td></tr>';
+  function renderTable(){
+    var tbody = qs('#prodTable tbody');
+    if (!tbody) return;
+    if (!STATE.items.length){
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:18px;">Sin datos</td></tr>';
+      qs('#pageInfo').textContent = 'Página 1 de 1 (0 registros)';
       return;
     }
-    var out = [];
-    for (var i=0;i<items.length;i++){
-      var it = items[i];
-      var id = String(it.id||'');
-      var qty = Number(it.qty||0);
-      var status = String(it.status||'');
-      var names = resolveNames(it.brandId, it.styleId, it.labelName, status, it.labelStyleId);
+    var html = STATE.items.map(function(r){
+      var ns = nameFor(r.brandId, r.styleId);
 
-      // flags (vienen desde GAS) + fallback por estado
-      var visitedP = !!it.visitedP || status === 'PAUSTERIZADO';
-      var visitedE = !!it.visitedE || status === 'ETIQUETADO';
+      var isFinal = String(r.status||'').toUpperCase()==='FINAL';
+      var canP = !r.visitedP && !isFinal;
+      var canE = !r.visitedE && !isFinal;
+      var canF = (String(r.status||'').toUpperCase()==='PAUSTERIZADO' || String(r.status||'').toUpperCase()==='ETIQUETADO');
 
-      var canP = status !== 'FINAL' && !visitedP;
-      var canE = status !== 'FINAL' && !visitedE;
-      var canF = status !== 'FINAL' && (visitedP || visitedE || status==='PAUSTERIZADO' || status==='ETIQUETADO');
+      var btnP = '<button class="btn ghost act-p" data-id="'+r.id+'" '+(canP?'':'disabled title="Ya pasó por Pausterizado o está en FINAL"')+'>Pausterizar</button>';
+      var btnE = '<button class="btn ghost act-e" data-id="'+r.id+'" '+(canE?'':'disabled title="Ya pasó por Etiquetado o está en FINAL"')+'>Etiquetar</button>';
+      var btnF = '<button class="btn ghost act-f" data-id="'+r.id+'" '+(canF?'':'disabled title="Finalizar disponible solo desde Pausterizado o Etiquetado"')+'>Finalizar</button>';
 
-      out.push(
-        '<tr>',
-          '<td><span title="', id.replace(/"/g,'&quot;'), '">', short(id), '</span></td>',
-          '<td>', names.brandName || '—', '</td>',
-          '<td>', names.styleName || '—', '</td>',
-          '<td>', qty, '</td>',
-          '<td>', badge(status), '</td>',
-          '<td>',
-            '<button class="btn ghost" data-act="to-p" data-id="', id, '" ',
-              canP? '' : 'disabled aria-disabled="true"', '>Pausterizar</button> ',
-            '<button class="btn ghost" data-act="to-e" data-id="', id,
-              '" data-brand="', (it.labelBrandId||it.brandId||''),
-              '" data-style="', (it.labelStyleId||it.styleId||''),
-              '" data-qty="', qty, '" ',
-              canE? '' : 'disabled aria-disabled="true"', '>Etiquetar</button> ',
-            '<button class="btn ghost" data-act="to-f" data-id="', id, '" ',
-              canF? '' : 'disabled aria-disabled="true"', '>Final</button>',
-          '</td>',
-        '</tr>'
-      );
-    }
-    tbl.innerHTML = out.join('');
+      var actions = [btnP, btnE, btnF].join(' ');
 
-    // acciones
-    tbl.querySelectorAll('button[data-act]').forEach(function(btn){
-      btn.addEventListener('click', async function(){
-        var act = this.getAttribute('data-act');
-        var id  = this.getAttribute('data-id');
-        this.disabled = true;
-        try{
-          if (act === 'to-p'){
-            var r1 = await callGAS('advanceProduction', { prodId:id, to:'PAUSTERIZADO' });
-            if (r1 && r1.ok){ TOAST('success','Pasó a Pausterizado'); await loadPage(); }
-            else { TOAST('error','No se pudo avanzar'); this.disabled=false; }
-          } else if (act === 'to-e'){
-            // abrimos modal con contexto
-            CURRENT_PROD = {
-              id: id,
-              brandId: String(this.getAttribute('data-brand')||''),
-              styleId: String(this.getAttribute('data-style')||''),
-              qty: Number(this.getAttribute('data-qty')||0)
-            };
-            await openLabelModal();
-            this.disabled = false;
-          } else if (act === 'to-f'){
-            var r2 = await callGAS('advanceProduction', { prodId:id, to:'FINAL' });
-            if (r2 && r2.ok){
-              TOAST('success', (r2.data && r2.data.merged) ? 'Finalizado (fusionado por estilo)' : 'Producción finalizada');
-              await loadPage();
-            } else { TOAST('error','No se pudo avanzar'); this.disabled=false; }
-          }
-        }catch(_){ this.disabled = false; }
-      });
-    });
+      return '<tr>'
+        + '<td>'+r.id+'</td>'
+        + '<td>'+ (ns.brand||'') +'</td>'
+        + '<td>'+ (ns.style || (r.labelName||'')) +'</td>'
+        + '<td>'+ fmtInt(r.qty) +'</td>'
+        + '<td>'+ statusPill(r.status) +'</td>'
+        + '<td>'+ actions +'</td>'
+        + '</tr>';
+    }).join('');
+    tbody.innerHTML = html;
+
+    var pages = Math.max(1, Math.ceil(STATE.total / STATE.pageSize));
+    qs('#pageInfo').textContent = 'Página '+STATE.page+' de '+pages+' ('+STATE.total+' registros)';
+    qs('#prevPage').disabled = (STATE.page<=1);
+    qs('#nextPage').disabled = (STATE.page>=pages);
   }
 
-  function updatePager(){
-    var pages = Math.max(1, Math.ceil(state.total/state.pageSize));
-    if (state.page>pages) state.page = pages;
-    pagerInfo.textContent = 'Página '+state.page+' de '+pages+' ('+state.total+' registros)';
-    prevBtn.disabled = (state.page<=1);
-    nextBtn.disabled = (state.page>=pages);
+  // --- mini helper de toast (usa SweetAlert2 ya cargado) ---
+  function toast(icon, title, ms){
+    if (window.Swal){
+      const T = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: ms || 1800,
+        timerProgressBar: true
+      });
+      T.fire({ icon, title });
+    } else {
+      console[(icon==='error'?'error':'log')](title);
+    }
+  }
+
+  // ---- data loaders ----
+  async function loadStyleMap(){
+    // build from listStyles + listBrands para no depender de getStyleMap
+    var styles = await window.SBData.listStyles();
+    var brands = await window.SBData.listBrands();
+    var bmap = {}; (brands||[]).forEach(function(b){ bmap[String(b.id)] = b.name; });
+    var smap = {};
+    (styles||[]).forEach(function(s){
+      var k = String(s.brandId||'') + '|' + String(s.styleId||'');
+      smap[k] = { brandId:s.brandId, styleId:s.styleId, name:s.name, color:s.color||'#000', brandName:bmap[String(s.brandId)||'']||'' };
+    });
+    STATE.styleMap = smap;
+    STATE.brandMap = bmap;
   }
 
   async function loadPage(){
-    if (refreshBtn) refreshBtn.disabled = true;
-    if (!Object.keys(STYLE_MAP).length) await loadStyleMap();
-    var r = await callGAS('listProductions', { page:state.page, pageSize:state.pageSize });
-    if (r && r.ok){
-      state.total = r.data.total||0;
-      renderRows(r.data.items||[]);
-      updatePager();
-    } else {
-      renderRows([]); TOAST('error','No se pudo cargar');
-    }
-    if (refreshBtn) refreshBtn.disabled = false;
+    await waitForSB(7000);
+    // pageSize de la UI
+    var sel = qs('#pageSize'); 
+    STATE.pageSize = sel ? Number(sel.value||20) : 20;
+
+    // nombres / colores
+    await loadStyleMap();
+
+    // productions
+    var res = await window.SBData.listProductions({ page: STATE.page, pageSize: STATE.pageSize });
+    STATE.items = res.items||[];
+    STATE.total = Number(res.total||0);
+    STATE.byId = {}; STATE.items.forEach(function(it){ STATE.byId[it.id] = it; });
+
+    // combo modal
+    await fillStyleCombo();
+
+    renderTable();
   }
 
-  // ===== Nueva producción =====
-  function openNew(){
-    if (!newModal) return;
-    if (newForm) newForm.reset();
-    if (submitNewBtn) submitNewBtn.disabled = false;
-    loadStylesForNew();
-    modalOpen(newModal);
+  async function fillStyleCombo(){
+    var select = qs('#prodStyleCombo'); if (!select) return;
+    var styles = await window.SBData.listStyles();
+    // ordenar por marca + estilo
+    styles.sort(function(a,b){
+      var A = (a.brandName||'') + ' ' + (a.name||'');
+      var B = (b.brandName||'') + ' ' + (b.name||'');
+      return A.localeCompare(B);
+    });
+    var html = '<option value="">Seleccionar…</option>' + styles.map(function(s){
+      var v = String(s.brandId)+'|'+String(s.styleId);
+      var label = (s.brandName||'') + ' — ' + (s.name||'');
+      return '<option value="'+v+'" data-color="'+(s.color||'#000')+'" data-b="'+s.brandId+'" data-s="'+s.styleId+'" data-style="'+(s.name||'')+'">'+label+'</option>';
+    }).join('');
+    select.innerHTML = html;
   }
-  function closeNewModal(){ modalClose(newModal); }
 
-  // ===== Etiquetado =====
-  async function openLabelModal(){
-    if (!labelModal) return;
-
-    // Mismo estilo: mostrar nombre legible
-    var k = (CURRENT_PROD.brandId||'') + '|' + (CURRENT_PROD.styleId||'');
-    var readable = STYLE_MAP[k] || {};
-    if (sameStyleNameEl){
-      var txt = (readable.brandName && readable.name) ? (readable.brandName + ' · ' + readable.name) : '—';
-      sameStyleNameEl.textContent = txt;
-    }
-
-    // Cargar personalizadas
-    if (customSelectEl){
-      customSelectEl.innerHTML = '<option value="">Cargando...</option>';
-      var names = await loadCustomLabelNames();
-      var opts = ['<option value="">Seleccionar etiqueta personalizada</option>'];
-      names.forEach(function(n){ opts.push('<option value="'+n+'">'+n+'</option>'); });
-      if (!names.length){ opts = ['<option value="">No hay personalizadas</option>']; }
-      customSelectEl.innerHTML = opts.join('');
-    }
-
-    // reset UI
-    var sameRadio = labelForm.querySelector('input[name="labelMode"][value="same"]');
-    if (sameRadio) sameRadio.checked = true;
-    if (sameStyleInfoEl) sameStyleInfoEl.style.display = '';
-    if (customGroupEl) customGroupEl.style.display = 'none';
-
-    modalOpen(labelModal);
-  }
-  function closeLabeling(){ modalClose(labelModal); }
-
-  // ===== Formularios =====
-  function bindForms(){
-    // Nueva producción
-    if (newForm){
-      newForm.addEventListener('submit', async function(ev){
-        ev.preventDefault();
-        if (!submitNewBtn || submitNewBtn.disabled) return;
-        submitNewBtn.disabled = true;
-
-        var fd = new FormData(newForm);
-        var qty = Number(fd.get('qty'));
-        var comboVal = String(fd.get('styleCombo')||'');
-        if (!qty || !comboVal){
-          TOAST('warning','Completá cantidad y estilo'); submitNewBtn.disabled=false; return;
-        }
-        var parts = comboVal.split('|');
-        var brandId = parts[0]||'', styleId = parts[1]||'';
-
-        var resp = await callGAS('createProduction', { qty, brandId, styleId });
-        if (resp && resp.ok){
-          TOAST('success','Producción creada (ENLATADO)');
-          closeNewModal();
-          if (newForm) newForm.reset();
-          state.page = 1;
-          await loadPage();
-        } else {
-          if (resp && resp.error === 'NO_EMPTY_STOCK'){
-            TOAST('error','Stock de latas insuficiente. Disponible: '+(resp.available||0));
-          } else {
-            TOAST('error','No se pudo crear');
-          }
-          submitNewBtn.disabled=false;
-        }
-      });
-    }
-
-    // Cambios de radio en etiquetado
-    if (labelForm){
-      labelForm.addEventListener('change', function(ev){
-        var t = ev.target;
-        if (t && t.name === 'labelMode'){
-          var mode = t.value;
-          if (mode === 'custom'){
-            if (customGroupEl) customGroupEl.style.display = '';
-            if (sameStyleInfoEl) sameStyleInfoEl.style.display = 'none';
-          } else {
-            if (customGroupEl) customGroupEl.style.display = 'none';
-            if (sameStyleInfoEl) sameStyleInfoEl.style.display = '';
-          }
-        }
-      });
-
-      // Submit de etiquetado
-      labelForm.addEventListener('submit', async function(ev){
-        ev.preventDefault();
-        if (!submitLabelBtn || submitLabelBtn.disabled) return;
-        submitLabelBtn.disabled = true;
-
-        var modeEl = labelForm.querySelector('input[name="labelMode"]:checked');
-        var mode = modeEl ? modeEl.value : 'same';
-
-        var labelBrandId = CURRENT_PROD.brandId;
-        var labelStyleId = CURRENT_PROD.styleId;
-        var labelName = '';
-
-        if (mode === 'same'){
-          // mismo estilo: usamos el nombre del estilo original
-          var k = (CURRENT_PROD.brandId||'') + '|' + (CURRENT_PROD.styleId||'');
-          labelName = (STYLE_MAP[k] && STYLE_MAP[k].name) || '';
-        } else {
-          // personalizada: brand = producción, styleId vacío, name = selección
-          if (!customSelectEl || !customSelectEl.value){
-            TOAST('warning','Elegí una etiqueta personalizada'); submitLabelBtn.disabled=false; return;
-          }
-          labelStyleId = ''; // importante: personalizada
-          labelName = customSelectEl.value;
-        }
-
-        var r = await callGAS('advanceProduction', {
-          prodId: CURRENT_PROD.id,
-          to: 'ETIQUETADO',
-          labelBrandId, labelStyleId, labelName
-        });
-
-        if (r && r.ok){
-          TOAST('success', 'Etiquetado OK (consumo de etiquetas)');
-          closeLabeling();
-          await loadPage();
-        } else {
-          if (r && r.error === 'NO_LABEL_STOCK'){
-            TOAST('error','Stock de etiquetas insuficiente');
-          } else if (r && r.error === 'BACKWARD_NOT_ALLOWED_ONCE_VISITED'){
-            TOAST('error','No se puede volver a un estado ya visitado');
-          } else if (r && r.error === 'MISSING_LABEL_SELECTION'){
-            TOAST('error','Falta seleccionar etiqueta');
-          } else {
-            TOAST('error','No se pudo etiquetar');
-          }
-          submitLabelBtn.disabled = false;
-        }
-      });
+  // ---- actions ----
+  async function doAdvance(prodId, to, extra){
+    try{
+      await window.SBData.advanceProduction(Object.assign({ prodId: prodId, to: to }, extra||{}));
+      var nice = (to==='PAUSTERIZADO' ? 'Pausterizado' : (to==='ETIQUETADO' ? 'Etiquetado' : 'Finalizado'));
+      toast('success', 'Estado actualizado: ' + nice, 1800);
+      await loadPage();
+    }catch(err){
+      console.error('[advance]', err);
+      var msg = 'No se pudo cambiar el estado.';
+      var code = (err && (err.code||err.message||'')).toString();
+      if (code.indexOf('NO_LABEL_STOCK')!==-1){
+        msg = 'No hay stock suficiente de etiquetas para esta producción.';
+      } else if (code.indexOf('BACKWARD_NOT_ALLOWED_ONCE_VISITED')!==-1){
+        msg = 'No se puede volver a un estado ya visitado (regla P↔E).';
+      } else if (code.indexOf('FINAL_REQUIRES_P_OR_E')!==-1){
+        msg = 'Para finalizar, debe pasar por Pausterizado o Etiquetado.';
+      } else if (code.indexOf('FINAL_IS_TERMINAL')!==-1){
+        msg = 'La producción ya está en FINAL.';
+      }
+      toast('error', msg, 2500);
+      throw err; // por si el caller necesita manejarlo
     }
   }
 
-  // ===== Bind inicial =====
+
+  // ---- wire up ----
   document.addEventListener('DOMContentLoaded', function(){
-    backdrop = $('#backdrop');
+    // botones
+    on(qs('#refreshBtn'), 'click', function(){ loadPage(); });
+    on(qs('#newProdBtn'), 'click', function(e){ setLastOpener(e.currentTarget); showModal('newProdModal'); });
 
-    // Nueva producción
-    newBtn = $('#newProdBtn'); newModal = $('#newProdModal');
-    closeNewBtn = $('#closeNewProd'); cancelNewBtn = $('#cancelNewProd');
-    newForm = $('#newProdForm'); submitNewBtn = $('#submitNewProd');
-    prodStyleCombo = $('#prodStyleCombo'); prodStylePreview = $('#prodStylePreview');
+    // page size
+    on(qs('#pageSize'), 'change', function(){ STATE.page = 1; loadPage(); });
 
-    if (newBtn) newBtn.addEventListener('click', openNew);
-    if (closeNewBtn) closeNewBtn.addEventListener('click', function(){ modalClose(newModal); });
-    if (cancelNewBtn) cancelNewBtn.addEventListener('click', function(){ modalClose(newModal); });
+    // pager
+    on(qs('#prevPage'), 'click', function(){ if (STATE.page>1){ STATE.page--; loadPage(); } });
+    on(qs('#nextPage'), 'click', function(){ var pages=Math.max(1, Math.ceil(STATE.total/STATE.pageSize)); if(STATE.page<pages){ STATE.page++; loadPage(); } });
 
-    // Etiquetado
-    labelModal = $('#labelProdModal');
-    closeLabelBtn = $('#closeLabelProd'); cancelLabelBtn = $('#cancelLabelProd');
-    labelForm = $('#labelProdForm'); submitLabelBtn = $('#submitLabelProd');
-    sameStyleNameEl = $('#sameStyleName');
-    sameStyleInfoEl = $('#sameStyleInfo');
-    customGroupEl = $('#customLabelGroup');
-    customSelectEl = $('#customLabelSelect');
+    // acciones de tabla (delegación)
+    var tbody = qs('#prodTable tbody');
+    on(tbody, 'click', function(ev){
+      var t = ev.target;
+      if (!(t && t.matches('button'))) return;
+      var id = t.getAttribute('data-id');
+      var row = STATE.byId[id]; if (!row) return;
+      setLastOpener(t);
 
-    if (closeLabelBtn) closeLabelBtn.addEventListener('click', closeLabeling);
-    if (cancelLabelBtn) cancelLabelBtn.addEventListener('click', closeLabeling);
-
-    // Backdrop cierra
-    var bd = $('#backdrop');
-    if (bd){
-      bd.addEventListener('click', function(){
-        modalClose(newModal);
-        modalClose(labelModal);
-      });
-    }
-    // ESC
-    document.addEventListener('keydown', function(ev){
-      if (ev.key === 'Escape'){
-        modalClose(newModal);
-        modalClose(labelModal);
+      if (t.classList.contains('act-p')){
+        // Pausterizar
+        doAdvance(id, 'PAUSTERIZADO');
+      } else if (t.classList.contains('act-e')){
+        // Etiquetar
+        openLabelModal(row);
+      } else if (t.classList.contains('act-f')){
+        // Finalizar
+        doAdvance(id, 'FINAL');
       }
     });
 
-    // Pager
-    if (prevBtn) prevBtn.addEventListener('click', function(){ if (state.page>1){ state.page--; loadPage(); } });
-    if (nextBtn) nextBtn.addEventListener('click', function(){ var pages=Math.ceil(state.total/state.pageSize); if(state.page<pages){ state.page++; loadPage(); } });
-    if (refreshBtn) refreshBtn.addEventListener('click', loadPage);
-    if (pageSizeSel) pageSizeSel.addEventListener('change', function(){ state.pageSize=Number(pageSizeSel.value)||20; state.page=1; loadPage(); });
+    // ---- modal: nueva producción ----
+    on(qs('#closeNewProd'), 'click', function(){ hideModal('newProdModal'); });
+    on(qs('#cancelNewProd'), 'click', function(){ hideModal('newProdModal'); });
+    on(qs('#prodStyleCombo'), 'change', function(e){
+      var opt = e.target.selectedOptions && e.target.selectedOptions[0];
+      var prev = qs('#prodStylePreview');
+      if (!prev) return;
+      if (!opt){ prev.textContent = ''; return; }
+      var styleName = opt.getAttribute('data-style')||'';
+      var brandId = opt.getAttribute('data-b')||'';
+      var brandName = STATE.brandMap[String(brandId)] || '';
+      prev.textContent = brandName ? (brandName + ' — ' + styleName) : styleName;
+    });
+    on(qs('#newProdForm'), 'submit', async function(ev){
+      ev.preventDefault();
+      try{
+        var fd = new FormData(ev.currentTarget);
+        var qty = Number(fd.get('qty')||0) || 0;
+        var combo = (fd.get('styleCombo')||'').toString();
+        if (!(qty>0) || !combo){
+          return Swal ? Swal.fire('Completar', 'Ingresá cantidad y estilo', 'info') : alert('Ingresá cantidad y estilo');
+        }
+        var parts = combo.split('|');
+        var brandId = parts[0]||''; var styleId = parts[1]||'';
+        await window.SBData.createProduction({ qty: qty, brandId: brandId, styleId: styleId });
+        hideModal('newProdModal');
+        toast('success', 'Producción creada', 1800); // toast top-right, autocierra
+        await loadPage();
+      }catch(err){
+        console.error('createProduction', err);
+        var msg = 'No pude crear la producción';
+        var code = (err && (err.code||err.message||'')).toString();
+        if (code.indexOf('NO_EMPTY_STOCK')!==-1){
+          msg = 'No hay latas vacías suficientes.';
+        } else if (code.indexOf('foreign key')!==-1 || code.indexOf('23503')!==-1){
+          msg = 'La marca/estilo seleccionados no existen.';
+        }
+        if (window.Swal){ Swal.fire('Error', msg, 'error'); } else { alert(msg); }
+      }
+    });
 
-    bindForms();
-    loadPage();
+    // ---- modal: etiquetar ----
+    on(qs('#closeLabelProd'), 'click', function(){ hideModal('labelProdModal'); });
+    on(qs('#cancelLabelProd'), 'click', function(){ hideModal('labelProdModal'); });
+    // radios
+    qsa('input[name="labelMode"]').forEach(function(radio){
+      on(radio, 'change', function(e){
+        var mode = e.currentTarget.value;
+        var isCustom = (mode === 'custom');
+        var grp = qs('#customLabelGroup');
+        if (grp) grp.style.display = isCustom ? '' : 'none';
+      });
+    });
+
+    on(qs('#labelProdForm'), 'submit', async function(ev){
+      ev.preventDefault();
+
+      var fd = new FormData(ev.currentTarget);
+      var prodId = fd.get('prodId');
+      var mode = fd.get('labelMode') || 'same';
+      var row = STATE.byId[String(prodId)||''];
+      if (!row){
+        toast('error','Producción no encontrada', 2200);
+        return;
+      }
+
+      // cerrar modal y limpiar foco ANTES del async (así no se reabre ni hay warning)
+      try { document.activeElement && document.activeElement.blur(); } catch(_){}
+      hideModal('labelProdModal');
+
+      try{
+        if (mode === 'same'){
+          // usamos el nombre del estilo del enlatado para registrar labelName (como en GAS)
+          var ns = nameFor(row.brandId, row.styleId);
+          var styleName = ns.style || row.labelName || '';
+          await doAdvance(String(prodId), 'ETIQUETADO', {
+            labelBrandId: row.brandId,
+            labelStyleId: row.styleId,
+            labelName: styleName
+          });
+        } else {
+          var sel = qs('#customLabelSelect');
+          var name = sel ? (sel.value||'') : '';
+          if (!name){
+            toast('info','Seleccioná un nombre personalizado', 1800);
+            // si falta el nombre, sí reabrimos para que el usuario elija
+            showModal('labelProdModal');
+            return;
+          }
+          await doAdvance(String(prodId), 'ETIQUETADO', {
+            labelBrandId: row.brandId,
+            labelStyleId: '',
+            labelName: name
+          });
+        }
+        // éxito → el modal queda cerrado y doAdvance ya refrescó la tabla
+      }catch(err){
+        // si falla (p.ej. NO_LABEL_STOCK), solo mostramos toast; no reabrimos
+        // (así evitamos el comportamiento de “se vuelve a abrir solo”)
+        // el mensaje específico ya lo muestra doAdvance → toast('error', ...)
+      }
+    });
+
+
+    // init
+    loadPage().catch(function(e){ console.error('loadPage', e); });
   });
+
+  // open label modal helper
+  async function openLabelModal(row){
+    // setear prodId oculto
+    var hid = document.querySelector('#labelProdForm input[name="prodId"]');
+    if (hid) hid.value = row.id;
+
+    // info de "mismo estilo"
+    var ns = nameFor(row.brandId, row.styleId);
+    var el = document.querySelector('#sameStyleName');
+    if (el) el.textContent = (ns.brand ? (ns.brand+' — ') : '') + (ns.style||'');
+
+    // cargar etiquetas personalizadas con stock
+    try{
+      var list = await window.SBData.listCustomLabels();
+      var sel = document.querySelector('#customLabelSelect');
+      if (sel){
+        var opts = list.map(function(it){
+          var dis = (Number(it.stock||0) <= 0) ? ' disabled' : '';
+          return '<option value="'+(it.name||'')+'"'+dis+'>'+ (it.name||'(sin nombre)') +' ('+(Number(it.stock||0))+')</option>';
+        }).join('');
+        sel.innerHTML = '<option value="">Seleccionar…</option>' + opts;
+      }
+    }catch(_){ /* ignore */ }
+
+    showModal('labelProdModal');
+  }
+
 })();

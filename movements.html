@@ -6,15 +6,25 @@
   <title>Movimientos | Brewery Stock</title>
 
   <!-- Estilos -->
-  <link rel="stylesheet" href="css/styles.css?v=2">
+  <link rel="stylesheet" href="css/styles.css?v=3">
+  <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- Configuración global -->
+  <!-- Config global -->
   <script src="./js/config.js"></script>
 
-  <!-- Script de la página -->
-  <script src="./js/movements.js" defer></script>
+  <!-- CDN supabase-js v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <!-- Tu config con window.SUPABASE_CONFIG = { url, anonKey } -->
+  <script src="js/config.supabase.js"></script>
+
+  <!-- Cliente + capa de datos -->
+  <script src="js/supabase_client.js"></script>
+  <script src="js/supabase_data.js"></script>
+
+  <!-- Script de la página (defer) -->
+  <script src="./js/movements.js" defer></script>
 </head>
 <body>
   <!-- Header global -->
@@ -24,9 +34,8 @@
   <main class="container" style="margin-top:16px;">
     <section class="card">
       <!-- Filtros activos -->
-      <div id="activeFilters" style="display:none; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0;">
-        <!-- Chip dinámico -->
-      </div>
+      <div id="activeFilters" style="display:none; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0;"></div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
         <div style="display:flex;gap:12px;align-items:center;">
           <label class="field" style="min-width:160px;">
@@ -83,6 +92,5 @@
       </div>
     </section>
   </main>
-
 </body>
 </html>

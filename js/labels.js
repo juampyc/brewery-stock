@@ -1,320 +1,271 @@
-// js/labels.js
-(function(){
+// js/labels.js (versión Supabase)
+(function () {
   'use strict';
 
-  var WEB_APP_URL = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
-  function $(sel, el){ if(!el) el=document; return el.querySelector(sel); }
-  function TOAST(icon, title){
-    return Swal.fire({ toast:true, position:'top-end', icon:icon, title:title, showConfirmButton:false, timer:2000, timerProgressBar:true });
+  // ---------- helpers ----------
+  const qs  = (s, r) => (r||document).querySelector(s);
+  const qsa = (s, r) => Array.from((r||document).querySelectorAll(s));
+  const on  = (el, ev, fn) => el && el.addEventListener(ev, fn, false);
+  const fmtInt = n => (Number(n||0) || 0).toString();
+
+  function fmtDateAR(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    // Mostrar en AR (-03)
+    const offMin = 3*60; // -03:00
+    const ms = d.getTime() - offMin*60*1000;
+    const a = new Date(ms);
+    const DD = String(a.getUTCDate()).padStart(2,'0');
+    const MM = String(a.getUTCMonth()+1).padStart(2,'0');
+    const YYYY = a.getUTCFullYear();
+    const HH = String(a.getUTCHours()).padStart(2,'0');
+    const Min = String(a.getUTCMinutes()).padStart(2,'0');
+    return `${DD}-${MM}-${YYYY} ${HH}:${Min}`;
   }
 
-  // Summary table (Marca | Estilo | Total)
-  var summaryTbody = $('#labelsSummary tbody');
+  function waitForSB(timeoutMs=7000){
+    return new Promise((res, rej)=>{
+      const t0 = Date.now();
+      (function spin(){
+        if (window.SB && window.SBData) return res();
+        if (Date.now() - t0 > timeoutMs) return rej(new Error('SB timeout'));
+        setTimeout(spin, 60);
+      })();
+    });
+  }
 
-  // Movements table
-  var tbl = $('#movsTable tbody');
-  var pagerInfo = $('#pageInfo');
-  var prevBtn = $('#prevPage');
-  var nextBtn = $('#nextPage');
-  var refreshBtn = $('#refreshMovs');
-  var pageSizeSel = $('#pageSize');
+  // Toast SweetAlert (arriba derecha, auto-cierra)
+  const Toast = (window.Swal && Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 2200,
+    timerProgressBar: true
+  })) || { fire: ({icon, title}) => console.log((icon||'info').toUpperCase()+':', title) };
 
-  // Modal
-  var labelsModal = $('#labelsModal');
-  var backdrop = $('#backdrop');
-  var addLabelBtn = $('#addLabelBtn');
-  var closeLabelsModal = $('#closeLabelsModal');
-  var labelsForm = $('#labelsForm');
-  var cancelLabelsBtn = $('#cancelLabelsBtn');
-  var submitLabelsBtn = $('#submitLabelsBtn');
-  var isCustomChk = $('#isCustomChk');
-  var styleCombo = $('#styleCombo');
-  var nonCustomFields = $('#nonCustomFields');
-  var customFields = $('#customFields');
-  var lotInput = labelsForm ? labelsForm.querySelector('input[name="lot"]') : null;
-  var nameInput = labelsForm ? labelsForm.querySelector('input[name="name"]') : null;
-  var stylePreview = $('#stylePreview');
+  // ---------- estado ----------
+  const STATE = {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    movements: [],
+    styles: [],
+    brandMap: {}, // id -> name
+    lastOpener: null
+  };
 
-  var state = { page: 1, pageSize: 20, total: 0 };
+  // ---------- modal helpers ----------
+  function showModal(id, opener){
+    const m = qs('#'+id); const bd = qs('#backdrop');
+    if (!m) return;
+    STATE.lastOpener = opener || document.activeElement || null;
+    m.setAttribute('aria-hidden','false');
+    bd && bd.classList.add('show');
+    // focus inicial
+    const f = m.querySelector('input,select,button,textarea,[tabindex]');
+    f && setTimeout(()=>{ try{ f.focus(); }catch(e){} }, 0);
+  }
+  function hideModal(id){
+    const m = qs('#'+id); const bd = qs('#backdrop');
+    if (!m) return;
+    m.setAttribute('aria-hidden','true');
+    bd && bd.classList.remove('show');
+    // restaurar foco para evitar aria-hidden warning
+    if (STATE.lastOpener && document.body.contains(STATE.lastOpener)) {
+      try{ STATE.lastOpener.focus(); }catch(_){}
+    }
+  }
 
-  // ==== GAS call
-  async function callGAS(action, payload){
-    var body = new URLSearchParams();
-    body.set('action', action);
-    body.set('payload', JSON.stringify(payload||{}));
+  // ---------- UI: resumen ----------
+  async function refreshLabelsSummary(){
+    const tbody = qs('#labelsSummary tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:12px;">Cargando…</td></tr>';
     try{
-      var res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body });
-      var text = await res.text();
-      if(!res.ok) return { ok:false, error:'HTTP_'+res.status, raw:text };
-      try { return JSON.parse(text); } catch(e){ return { ok:false, error:'INVALID_JSON', raw:text }; }
-    }catch(err){ return { ok:false, error:String(err) }; }
-  }
-
-  // ==== Summary
-  function renderSummary(rows){
-    // ahora rows puede tener negativos; filtro solo los 0
-    rows = (rows || []).filter(r => Number(r.totalQty) !== 0);
-
-    if (!rows.length){
-      summaryTbody.innerHTML = '<tr><td colspan="3" class="muted">Sin datos</td></tr>';
-      return;
-    }
-    summaryTbody.innerHTML = rows.map(r => `
-      <tr>
-        <td>${r.marca}</td>
-        <td>${r.estilo}</td>
-        <td class="${Number(r.totalQty)<0 ? 'danger' : ''}">${r.totalQty}</td>
-      </tr>`).join('');
-  }
-
-
-  async function loadSummary(){
-    var r = await callGAS('labelsSummary', {});
-    if(r && r.ok) renderSummary(r.data||[]);
-    else {
-      renderSummary([]);
-      TOAST('error','No se pudo cargar resumen');
-    }
-  }
-
-  // ==== Movements
-  function fmtDate(dateStr){
-    if(!dateStr) return '';
-    var d = new Date(dateStr);
-    if(isNaN(d.getTime())) return dateStr;
-    var dd = String(d.getDate()).padStart(2,'0');
-    var mm = String(d.getMonth()+1).padStart(2,'0');
-    var yy = String(d.getFullYear()).slice(-2);
-    var hh = String(d.getHours()).padStart(2,'0');
-    var mi = String(d.getMinutes()).padStart(2,'0');
-    return `${dd}/${mm}/${yy} ${hh}:${mi}`;
-  }
-  function short(v){ return v ? String(v).substring(0,8) : ''; }
-
-  function renderRows(items){
-    if(!tbl) return;
-    if(!items || !items.length){
-      tbl.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;">Sin datos</td></tr>';
-      return;
-    }
-    var out = [];
-    for(var i=0;i<items.length;i++){
-      var it = items[i];
-      var fullId = it.id || '';
-      var fullRef = it.refId || '';
-      var shortId = short(fullId);
-      var shortRef = short(fullRef);
-      var dateStr = it.dateTime || '';
-      var formattedDate = fmtDate(dateStr);
-
-      out.push('<tr>',
-        '<td><span title="', fullId.replace(/"/g,'&quot;'), '">', shortId, '</span></td>',
-        '<td>', (it.type||''), '</td>',
-        '<td><span title="', fullRef.replace(/"/g,'&quot;'), '">', shortRef, '</span></td>',
-        '<td>', (it.qty!=null?it.qty:''), '</td>',
-        '<td>', (it.provider||''), '</td>',
-        '<td>', (it.lot||''), '</td>',
-        '<td>', formattedDate, '</td>',
-      '</tr>');
-    }
-    tbl.innerHTML = out.join('');
-  }
-
-  function updatePager(){
-    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if(state.page > pages) state.page = pages;
-    if(pagerInfo) pagerInfo.textContent = 'Página ' + state.page + ' de ' + pages + ' (' + state.total + ' registros)';
-    if(prevBtn) prevBtn.disabled = (state.page <= 1);
-    if(nextBtn) nextBtn.disabled = (state.page >= pages);
-  }
-
-  async function loadPage(){
-    if(refreshBtn) refreshBtn.disabled = true;
-    // Cargar solo movimientos de etiquetas (LABEL_*)
-    const r = await callGAS('listMovements', {
-      page: state.page,
-      pageSize: state.pageSize,
-      typePrefix: 'LABEL_'   // <- clave
-    });
-
-    if(r && r.ok){
-      state.total = r.data.total || 0;
-      renderRows(r.data.items||[]);
-      updatePager();
-    }else{
-      renderRows([]);
-      TOAST('error','No se pudo cargar');
-    }
-    if(refreshBtn) refreshBtn.disabled = false;
-  }
-
-  // ==== Modal open/close
-  function openLabelsModal(){ labelsModal.setAttribute('aria-hidden','false'); backdrop.setAttribute('aria-hidden','false'); labelsForm.reset(); if(submitLabelsBtn) submitLabelsBtn.disabled=false; loadStylesIntoCombo(); }
-  function closeLabels(){ labelsModal.setAttribute('aria-hidden','true'); backdrop.setAttribute('aria-hidden','true'); }
-
-  if(addLabelBtn) addLabelBtn.addEventListener('click', openLabelsModal);
-  if(closeLabelsModal) closeLabelsModal.addEventListener('click', closeLabels);
-  if(cancelLabelsBtn) cancelLabelsBtn.addEventListener('click', closeLabels);
-  if(backdrop) backdrop.addEventListener('click', closeLabels);
-
-  if(isCustomChk){
-    isCustomChk.addEventListener('change', function(){
-      var custom = isCustomChk.checked;
-      customFields.style.display = custom? 'block' : 'none';
-      nonCustomFields.style.display = custom? 'none' : 'block';
-      if(styleCombo) custom ? styleCombo.removeAttribute('required') : styleCombo.setAttribute('required','required');
-      updateStylePreviewAndLot();
-    });
-  }
-
-  // ==== Styles combo (Marca – Estilo)
-  var STYLE_INDEX = {}; // key: "brandId|styleId" o "brandId" → {brandId, styleId, name, brandName}
-
-  async function loadStylesIntoCombo(){
-    if(!styleCombo) return;
-    styleCombo.innerHTML = '<option value="">Cargando...</option>';
-    var r = await callGAS('listStyles', {});
-    if(!r || !r.ok){
-      styleCombo.innerHTML = '<option value="">No se pudo cargar</option>';
-      return;
-    }
-    var items = Array.isArray(r.data)? r.data : [];
-    if(!items.length){
-      styleCombo.innerHTML = '<option value="">Sin datos en styles</option>';
-      return;
-    }
-    STYLE_INDEX = {};
-    var opts = ['<option value="">Seleccionar marca/estilo</option>'];
-    for(var i=0;i<items.length;i++){
-      var it = items[i];
-      var brandId = String(it.brandId||'');
-      var styleId = String(it.styleId||'');
-      var name    = String(it.name||'');       // nombre del estilo
-      var brandNm = String(it.brandName||'');  // nombre de la marca
-
-      var val = styleId ? (brandId + '|' + styleId) : brandId;
-      STYLE_INDEX[val] = { brandId: brandId, styleId: styleId, name: name, brandName: brandNm };
-
-      // 👇 etiqueta visible solo con nombres legibles
-      var label = [brandNm, name].filter(Boolean).join(' - ');
-      opts.push('<option value="'+val+'">'+label+'</option>');
-    }
-    styleCombo.innerHTML = opts.join('');
-
-    // preview y sugerencia de lote
-    updateStylePreviewAndLot();
-    styleCombo.addEventListener('change', updateStylePreviewAndLot);
-    if(nameInput) nameInput.addEventListener('input', updateStylePreviewAndLot);
-  }
-
-  function yyyymm(d){ var y=d.getFullYear(); var m=d.getMonth()+1; return y + (m<10?('0'+m):m); }
-  function sanitizeToken(s){ return String(s||'').trim().replace(/\s+/g,'').replace(/[^A-Za-z0-9_-]/g,'').toUpperCase(); }
-
-  function currentSuggestion(isCustom, it){
-    var brand = it && it.brandName ? sanitizeToken(it.brandName) : 'GEN';
-    var suffix = 'GEN';
-    if(isCustom && nameInput && nameInput.value){
-      suffix = sanitizeToken(nameInput.value);
-    } else if (it) {
-      suffix = it.name ? sanitizeToken(it.name) : 'GEN';
-    }
-    return 'L-ETI-' + brand + '-' + suffix + '-' + yyyymm(new Date());
-  }
-
-  function updateStylePreviewAndLot(){
-    var custom = !!(isCustomChk && isCustomChk.checked);
-    if(custom){
-      if(stylePreview){
-        var txt = 'Personalizada';
-        if(nameInput && nameInput.value) txt += ': ' + nameInput.value;
-        stylePreview.textContent = txt;
-      }
-      if(lotInput) lotInput.placeholder = currentSuggestion(true, null);
-      return;
-    }
-    if(!styleCombo) return;
-    var val = styleCombo.value || '';
-    var it = STYLE_INDEX[val];
-    if(!it){
-      if(stylePreview) stylePreview.textContent = '';
-      if(lotInput) lotInput.placeholder = 'Ej: L-ETI-CASTELO-IPA-202509';
-      return;
-    }
-    if(stylePreview) stylePreview.textContent = 'Seleccionado: ' + [it.brandName, it.name].filter(Boolean).join(' · ');
-    if(lotInput){
-      var suggestion = currentSuggestion(false, it);
-      lotInput.placeholder = suggestion;
-      if(!lotInput.value) lotInput.value = suggestion;
-    }
-  }
-
-  // ==== Submit etiquetas
-  if(labelsForm){
-    labelsForm.addEventListener('submit', async function(ev){
-      ev.preventDefault();
-      if(!submitLabelsBtn || submitLabelsBtn.disabled) return;
-      submitLabelsBtn.disabled = true;
-
-      var fd = new FormData(labelsForm);
-      var qty = Number(fd.get('qty'));
-      var provider = String(fd.get('provider')||'').trim();
-      var lot = String(fd.get('lot')||'').trim();
-      var isCustom = !!fd.get('isCustom');
-
-      if(!qty || !provider || !lot){
-        TOAST('warning','Completá cantidad, proveedor y lote');
-        submitLabelsBtn.disabled=false;
+      const rows = await window.SBData.labelsSummary(); // [{marca, estilo, totalQty}]
+      if (!rows.length){
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:12px;">Sin datos</td></tr>';
         return;
       }
-
-      var brandId = '', styleId = '', name = '';
-      if(isCustom){
-        name = String(fd.get('name')||'').trim();
-        if(!name){
-          TOAST('warning','Ingresá el nombre de la etiqueta personalizada');
-          submitLabelsBtn.disabled=false;
-          return;
-        }
-      } else {
-        var comboVal = String(fd.get('styleCombo')||'');
-        if(!comboVal){
-          TOAST('warning','Seleccioná marca/estilo');
-          submitLabelsBtn.disabled=false;
-          return;
-        }
-        if(comboVal.indexOf('|')!==-1){
-          var parts = comboVal.split('|');
-          brandId = parts[0]||'';
-          styleId = parts[1]||'';
-        } else {
-          brandId = comboVal;
-          styleId = '';
-        }
-        var it = STYLE_INDEX[comboVal];
-        if(it && it.name) name = it.name;
-      }
-
-      var resp = await callGAS('addLabel', { qty, provider, lot, isCustom, brandId, styleId, name });
-      if(resp && resp.ok){
-        TOAST('success','Etiquetas registradas');
-        closeLabels();
-        await loadSummary();
-        await loadPage();
-      }else{
-        TOAST('error','No se pudo guardar');
-        submitLabelsBtn.disabled=false;
-      }
-    });
+      tbody.innerHTML = rows.map(r=>(
+        `<tr>
+          <td>${r.marca||''}</td>
+          <td>${r.estilo||''}</td>
+          <td>${fmtInt(r.totalQty)}</td>
+        </tr>`
+      )).join('');
+    }catch(err){
+      console.error('[labelsSummary]', err);
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:12px;color:#b00;">Error</td></tr>';
+    }
   }
 
-  // ==== Eventos de paginación
-  if(prevBtn) prevBtn.addEventListener('click', function(){ if(state.page>1){ state.page--; loadPage(); } });
-  if(nextBtn) nextBtn.addEventListener('click', function(){ var pages=Math.max(1, Math.ceil(state.total/state.pageSize)); if(state.page<pages){ state.page++; loadPage(); } });
-  if(refreshBtn) refreshBtn.addEventListener('click', function(){ loadSummary(); loadPage(); });
-  if(pageSizeSel) pageSizeSel.addEventListener('change', function(){ state.pageSize=parseInt(pageSizeSel.value,10)||20; state.page=1; loadPage(); });
+  // ---------- UI: movimientos (opcional) ----------
+  async function refreshMovements(){
+    const tbody = qs('#movsTable tbody');
+    if (!tbody) return;
+    const szSel = qs('#pageSize'); STATE.pageSize = szSel ? Number(szSel.value||20) : 20;
+    const refBtn = qs('#refreshMovs'); if (refBtn) refBtn.disabled = true;
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:12px;">Cargando…</td></tr>';
+    try{
+      const res = await window.SBData.listMovements({ page: STATE.page, pageSize: STATE.pageSize, typePrefix: 'LABEL' });
+      STATE.movements = res.items||[]; STATE.total = Number(res.total||0);
 
-  document.addEventListener('DOMContentLoaded', function(){
-    loadSummary();
-    loadPage();
+      if (!STATE.movements.length){
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:12px;">Sin datos</td></tr>';
+      }else{
+        tbody.innerHTML = STATE.movements.map(m=>(
+          `<tr>
+            <td>${m.id||''}</td>
+            <td>${m.type||''}</td>
+            <td>${fmtInt(m.qty)}</td>
+            <td>${m.provider||''}</td>
+            <td>${m.lot||''}</td>
+            <td>${fmtDateAR(m.dateTime)}</td>
+          </tr>`
+        )).join('');
+      }
+
+      const pages = Math.max(1, Math.ceil(STATE.total / STATE.pageSize));
+      const info = qs('#movPageInfo');
+      if (info) info.textContent = `Página ${STATE.page} de ${pages} (${STATE.total} registros)`;
+      const prev = qs('#movPrev'); const next = qs('#movNext');
+      if (prev) prev.disabled = (STATE.page<=1);
+      if (next) next.disabled = (STATE.page>=pages);
+    }catch(err){
+      console.error('[movements]', err);
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:12px;color:#b00;">Error</td></tr>';
+    }finally{
+      const btn = qs('#refreshMovs'); if (btn) btn.disabled = false;
+    }
+  }
+
+  // ---------- cargar estilos para el combo ----------
+  async function fillStyleCombo(){
+    const sel = qs('#styleCombo');
+    if (!sel) return;
+    const styles = await window.SBData.listStyles();
+    // brand map
+    const brands = await window.SBData.listBrands();
+    const bmap = {}; (brands||[]).forEach(b=> bmap[String(b.id)] = b.name );
+    STATE.brandMap = bmap;
+
+    // ordenar por marca + estilo
+    styles.sort((a,b)=>{
+      const A = (a.brandName||'') + ' ' + (a.name||'');
+      const B = (b.brandName||'') + ' ' + (b.name||'');
+      return A.localeCompare(B);
+    });
+
+    const html = '<option value="">Seleccionar…</option>' + styles.map(s=>{
+      const v = String(s.brandId)+'|'+String(s.styleId);
+      const label = (s.brandName||'') + ' — ' + (s.name||'');
+      return `<option value="${v}" data-b="${s.brandId}" data-s="${s.styleId}" data-style="${s.name||''}">${label}</option>`;
+    }).join('');
+    sel.innerHTML = html;
+  }
+
+  // ---------- init ----------
+  document.addEventListener('DOMContentLoaded', async function(){
+    try{
+      await waitForSB();
+
+      // Botones top
+      on(qs('#addLabelBtn'), 'click', (e)=>{ showModal('labelsModal', e.currentTarget); });
+      on(qs('#refreshMovs'), 'click', ()=>{ refreshMovements(); });
+      on(qs('#pageSize'), 'change', ()=>{ STATE.page=1; refreshMovements(); });
+      on(qs('#movPrev'), 'click', ()=>{ if (STATE.page>1){ STATE.page--; refreshMovements(); } });
+      on(qs('#movNext'), 'click', ()=>{ const pages=Math.max(1, Math.ceil(STATE.total/STATE.pageSize)); if(STATE.page<pages){ STATE.page++; refreshMovements(); } });
+
+      // Modal
+      on(qs('#closeLabelsModal'), 'click', ()=> hideModal('labelsModal'));
+      on(qs('#cancelLabelsBtn'), 'click', ()=> hideModal('labelsModal'));
+
+      // toggle custom/non custom
+      const isCustom = qs('#isCustomChk');
+      const customToggle = qs('#customToggle');
+      const nonCustomWrap = qs('#nonCustomFields');
+      const customWrap = qs('#customFields');
+
+      function applyCustomToggle(){
+        const custom = !!(isCustom && isCustom.checked);
+        if (nonCustomWrap) nonCustomWrap.style.display = custom ? 'none' : '';
+        if (customWrap)    customWrap.style.display    = custom ? '' : 'none';
+      }
+      if (isCustom) on(isCustom, 'change', applyCustomToggle);
+      if (customToggle) on(customToggle, 'click', ()=>{ if(isCustom){ isCustom.checked = !isCustom.checked; applyCustomToggle(); }});
+      applyCustomToggle();
+
+      // style combo + preview
+      await fillStyleCombo();
+      on(qs('#styleCombo'), 'change', (e)=>{
+        const opt = e.target.selectedOptions && e.target.selectedOptions[0];
+        const prev = qs('#stylePreview');
+        if (!prev) return;
+        if (!opt){ prev.textContent=''; return; }
+        const bId = opt.getAttribute('data-b')||'';
+        const sName = opt.getAttribute('data-style')||'';
+        const bName = STATE.brandMap[bId] || '';
+        prev.textContent = bName ? `${bName} — ${sName}` : sName;
+      });
+
+      // submit alta
+      on(qs('#labelsForm'), 'submit', async (ev)=>{
+        ev.preventDefault();
+        const form = ev.currentTarget;
+        try{
+          const fd = new FormData(form);
+          const qty = Number(fd.get('qty')||0) || 0;
+          const provider = (fd.get('provider')||'').toString().trim();
+          const lot      = (fd.get('lot')||'').toString().trim();
+
+          const custom = !!(isCustom && isCustom.checked);
+          let brandId='', styleId='', name='';
+
+          if (custom){
+            const nmInp = qs('#customFields input[type="text"], #customFields input[name="name"]');
+            name = (nmInp && nmInp.value || '').trim();
+            if (!qty || !provider || !lot || !name){
+              return Toast.fire({ icon:'info', title:'Ingresá cantidad, proveedor, lote y nombre' });
+            }
+          }else{
+            const sel = qs('#styleCombo');
+            const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
+            if (!qty || !provider || !lot || !opt){
+              return Toast.fire({ icon:'info', title:'Ingresá cantidad, proveedor, lote y estilo' });
+            }
+            brandId = opt.getAttribute('data-b')||'';
+            styleId = opt.getAttribute('data-s')||'';
+          }
+
+          await window.SBData.addLabel({ qty, provider, lot, isCustom: custom, brandId, styleId, name });
+
+          // éxito
+          hideModal('labelsModal');
+          Toast.fire({ icon:'success', title: 'Etiqueta cargada' });
+
+          // refrescar
+          refreshLabelsSummary();
+          refreshMovements();
+
+          // limpiar form y preview
+          form.reset();
+          applyCustomToggle();
+          const prev = qs('#stylePreview'); if (prev) prev.textContent = '';
+        }catch(err){
+          console.error('[addLabel]', err);
+          Toast.fire({ icon:'error', title:'No pude registrar la etiqueta' });
+        }
+      });
+
+      // primera carga
+      refreshLabelsSummary();
+      refreshMovements();
+
+    }catch(err){
+      console.error('[labels init]', err);
+      Toast.fire({ icon:'error', title:'No pude inicializar Etiquetas' });
+    }
   });
+
 })();

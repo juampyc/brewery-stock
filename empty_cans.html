@@ -4,13 +4,27 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Latas Vacías | Brewery Stock</title>
+    
+  <!-- Config -->
+  <script src="./js/config.js"></script>
+
+  <!-- CDN supabase-js v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Tu config con window.SUPABASE_CONFIG = { url, anonKey } -->
+  <script src="js/config.supabase.js?v=1"></script>
+
+  <!-- Cliente + capa de datos + shim GAS -->
+  <script src="js/supabase_client.js?v=1"></script>
+  <script src="js/supabase_data.js?v=1"></script>
+  <script src="js/gas_shim.js?v=1"></script>
 
   <!-- Estilos -->
-  <link rel="stylesheet" href="css/styles.css?v=2">
+  <link rel="stylesheet" href="./css/styles.css?v=3" />
+
+  <!-- Lib SweetAlert -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- Configuración global -->
-  <script src="./js/config.js"></script>
 
   <!-- Script de la página -->
   <script src="./js/empty_cans.js" defer></script>
@@ -20,6 +34,7 @@
     .big { font-size: 1.6em; font-weight: 700; }
     .table-wrap { overflow: auto; }
   </style>
+
 </head>
 <body>
   <!-- Header global -->
@@ -35,8 +50,44 @@
         <div class="muted small">Stock neto (altas - consumos - scrap)</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="addEmptyBtn" class="btn">➕ Ingresar latas vacías</button>
-        <!-- (Se quita el link a movements) -->
+        <!-- Botón (en Acciones) -->
+        <button id="newEmptyBtn" class="btn">➕ Agregar latas vacías</button>
+
+        <!-- Backdrop (una sola vez en la página, si no está) -->
+        <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
+        <!-- Modal: Agregar latas vacías -->
+        <div id="newEmptyModal" class="modal" aria-hidden="true">
+          <div class="modal__content labels-compact">
+            <header class="modal__header">
+              <h3>Nueva entrada de latas</h3>
+              <button id="closeNewEmpty" class="icon-btn" aria-label="Cerrar">✕</button>
+            </header>
+
+            <form id="newEmptyForm" class="form">
+              <div class="grid form grid-3">
+                <label class="field">
+                  <span>Cantidad</span>
+                  <input type="number" name="qty" min="1" step="1" required placeholder="Ej: 500" />
+                </label>
+                <label class="field">
+                  <span>Proveedor</span>
+                  <input type="text" name="provider" required placeholder="Ej: Crown" />
+                </label>
+                <label class="field">
+                  <span>Lote</span>
+                  <input type="text" name="lot" required placeholder="Ej: 9bq1ni" />
+                </label>
+              </div>
+
+              <footer class="modal__footer">
+                <button type="button" class="btn" id="cancelNewEmpty">Cancelar</button>
+                <button type="submit" class="btn primary">Guardar</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -63,17 +114,13 @@
           <thead>
             <tr>
               <th>ID</th>
-              <th>Tipo</th>
-              <th>Ref</th>
               <th>Cantidad</th>
               <th>Proveedor</th>
               <th>Lote</th>
               <th>Fecha</th>
             </tr>
           </thead>
-          <tbody>
-            <tr><td colspan="7" style="text-align:center;padding:18px;">Cargando...</td></tr>
-          </tbody>
+          <tbody><tr><td colspan="5" style="text-align:center;padding:18px;">Cargando...</td></tr></tbody>
         </table>
       </div>
 
@@ -84,43 +131,6 @@
       </div>
     </section>
   </main>
-
-  <!-- Modal de ingreso -->
-  <div id="modal" class="modal" aria-hidden="true">
-    <div class="modal-content card">
-      <h2>Ingresar latas vacías</h2>
-      <form id="emptyForm">
-        <label class="field">
-          <span>Cantidad</span>
-          <input type="number" name="qty" required min="1" />
-        </label>
-        <label class="field">
-          <span>Proveedor</span>
-          <input type="text" name="provider" required />
-        </label>
-        <label class="field">
-          <span>Lote</span>
-          <input type="text" name="lot" required />
-        </label>
-        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:12px;">
-          <button type="button" id="cancelBtn" class="btn ghost">Cancelar</button>
-          <button type="submit" id="submitBtn" class="btn">Guardar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
-
-  <!-- Footer (opcional) -->
-  <footer class="container muted small" style="text-align:center;margin:32px 0 12px;">
-    <span id="appFooter"></span>
-  </footer>
-  <script>
-    if (window.getAppConfig) {
-      document.getElementById("appFooter").textContent =
-        getAppConfig("APP_NAME") + " · v" + getAppConfig("VERSION");
-    }
-  </script>
 
 </body>
 </html>

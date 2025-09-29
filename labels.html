@@ -5,18 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Etiquetas | Brewery Stock</title>
 
+  <!-- Config -->
+  <script src="./js/config.js"></script>
+
+  <!-- CDN supabase-js v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Tu config con window.SUPABASE_CONFIG = { url, anonKey } -->
+  <script src="js/config.supabase.js"></script>
+
+  <!-- Cliente + capa de datos + shim GAS -->
+  <script src="js/supabase_client.js"></script>
+  <script src="js/supabase_data.js"></script>
+  <script src="js/gas_shim.js"></script>
+
   <!-- Estilos -->
   <link rel="stylesheet" href="./css/styles.css?v=3" />
 
   <!-- Lib SweetAlert -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  
-  <!-- Configuración global -->
-  <script src="./js/config.js"></script>
 
-  <!-- Script de página -->
-  <script src="./js/labels.js" defer></script> 
-  
+  <!-- Tu script de esta página -->
+  <script src="js/labels.js" defer></script>
+
 </head>
 <body>
   <!-- Header global -->
@@ -77,7 +88,6 @@
             <tr>
               <th>ID</th>
               <th>Tipo</th>
-              <th>Ref</th>
               <th>Cantidad</th>
               <th>Proveedor</th>
               <th>Lote</th>

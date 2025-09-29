@@ -4,17 +4,30 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Producción | Brewery Stock</title>
+
+  <!-- CDN supabase-js v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Tu config con window.SUPABASE_CONFIG = { url, anonKey } -->
+  <script src="js/config.supabase.js"></script>
+
+  <!-- Cliente + capa de datos + shim GAS -->
+  <script src="js/supabase_client.js"></script>
+  <script src="js/supabase_data.js"></script>
+  <script src="js/gas_shim.js"></script>
   
   <!-- Estilos -->
   <link rel="stylesheet" href="css/styles.css?v=3" />
+  <link rel="stylesheet" href="css/pills.css" />
 
   <!-- Lib SweetAlert -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- Config Global (define window.GAS_WEB_APP_URL / APP_CONFIG) -->
+  <!-- Config Global -->
   <script src="js/config.js"></script>
 
-
+  <!-- Página -->
+  <script src="js/production.js" defer></script>
 </head>
 <body>
   <div id="site-header"></div>
@@ -146,8 +159,5 @@
       </form>
     </div>
   </div>
-
-
-  <script src="./js/production.js" defer></script>
 </body>
 </html>

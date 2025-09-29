@@ -1,78 +1,109 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Nuevo estilo</title>
-  <link rel="stylesheet" href="css/styles.css?v=2">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nuevos Estilos | Brewery Stock</title>
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/styles.css?v=3" />
+
+  <!-- SweetAlert -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Config global -->
   <script src="./js/config.js"></script>
-  <script src="js/header.js" defer></script>
-  <style>
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media (max-width:760px){ .grid-2{grid-template-columns:1fr} }
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    input[type="color"]{width:44px;height:32px;padding:0;border:none;background:transparent;cursor:pointer;border-radius:6px}
-    .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--border);margin-right:6px;vertical-align:middle}
-    .table-wrap{overflow:auto}
-  </style>
+
+  <!-- CDN supabase-js v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Tu config con window.SUPABASE_CONFIG = { url, anonKey } -->
+  <script src="js/config.supabase.js"></script>
+
+  <!-- Cliente + capa de datos (Supabase) -->
+  <script src="js/supabase_client.js"></script>
+  <script src="js/supabase_data.js"></script>
+
+  <!-- Script de la página -->
+  <script src="js/styles_new.js" defer></script>
 </head>
 <body>
+  <!-- Header global -->
   <div id="site-header"></div>
-  <main class="container">
+  <script src="js/header.js" defer></script>
 
-    <div class="card" style="max-width:900px">
-      <h2>Crear nuevo estilo</h2>
-      <form id="styleForm">
-        <div class="grid-2">
-          <label>Marca
-            <select id="brandSel" name="brandId" required></select>
-          </label>
-          <label>Nombre del estilo
-            <input type="text" id="styleName" name="name" required placeholder="IPA, Kolsch, etc.">
-          </label>
-        </div>
+  <main class="container" style="margin-top:16px;">
+    <!-- Acciones -->
+    <section class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="margin:0;">🎨 Estilos</h2>
+      <div class="actions">
+        <button id="newStyleBtn" class="btn">➕ Nuevo estilo</button>
+        <button id="refreshBtn" class="btn ghost">↻ Refrescar</button>
+      </div>
+    </section>
 
-        <div class="row" style="margin-top:10px">
-          <label>Color
-            <input type="color" id="styleColor" name="color" value="#147500" title="Elegí color del estilo">
-          </label>
-
-          <label style="display:inline-flex;align-items:center;gap:8px">
-            <input type="checkbox" id="showAlways" name="showAlways" checked>
-            Mostrar siempre
-          </label>
-        </div>
-
-        <div class="row" style="margin-top:12px">
-          <button class="btn" type="submit">Guardar estilo</button>
-          <button class="btn ghost" type="button" id="reloadBtn">↻ Recargar</button>
-        </div>
-      </form>
-    </div>
-
-    <div style="height:12px"></div>
-
-    <div class="card">
-      <h2>Estilos actuales</h2>
-      <div class="table-wrap">
+    <!-- Tabla -->
+    <section class="card" style="margin-top:12px;">
+      <div style="overflow:auto;">
         <table class="table" id="stylesTable">
           <thead>
             <tr>
               <th>Marca</th>
               <th>Estilo</th>
               <th>Color</th>
-              <th>Mostrar</th>
-              <th>StyleId</th>
+              <th>Mostrar siempre</th>
             </tr>
           </thead>
-          <tbody><tr><td colspan="5" style="text-align:center;padding:16px">Cargando…</td></tr></tbody>
+          <tbody>
+            <tr><td colspan="4" style="text-align:center;padding:18px;">Cargando...</td></tr>
+          </tbody>
         </table>
       </div>
-    </div>
-
+    </section>
   </main>
-  <script src="js/styles_new.js"></script>
+
+  <!-- Backdrop -->
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
+  <!-- Modal: Nuevo Estilo -->
+  <div id="styleModal" class="modal" aria-hidden="true">
+    <div class="modal__content labels-compact">
+      <header class="modal__header">
+        <h3>Nuevo estilo</h3>
+        <button id="closeStyleModal" class="icon-btn" aria-label="Cerrar">✕</button>
+      </header>
+
+      <form id="styleForm" class="form">
+        <div class="grid grid-2">
+          <label class="field">
+            <span>Marca</span>
+            <select id="brandSelect" required>
+              <option value="">Cargando...</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Nombre del estilo</span>
+            <input id="styleName" type="text" required placeholder="Ej: IPA" />
+          </label>
+
+          <label class="field">
+            <span>Color</span>
+            <input id="styleColor" type="color" value="#000000" />
+          </label>
+
+          <label class="field" style="display:flex;align-items:flex-end;">
+            <span class="muted small" style="margin-right:8px;">Mostrar siempre</span>
+            <input id="styleShowAlways" type="checkbox" style="transform:scale(1.2);margin-bottom:6px;" />
+          </label>
+        </div>
+
+        <footer class="modal__footer">
+          <button type="button" id="cancelStyleBtn" class="btn">Cancelar</button>
+          <button type="submit" class="btn primary">Guardar</button>
+        </footer>
+      </form>
+    </div>
+  </div>
 </body>
 </html>

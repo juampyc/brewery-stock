@@ -1,44 +1,38 @@
-// js/index_enhancements.js (v4)
-// - Igualar tamaño de los 3 cards superiores con un contenedor grid (.top-row)
-// - Mantiene: estados verticales, colores fijos, valores dentro de barras, reordenamientos previos
+// js/index_enhancements.js — v8.1 (fix: wait SB + keep 4 cards + colors)
 (function(){
   'use strict';
 
-  var MAIN_URL = (window.APP_CONFIG && window.APP_CONFIG.GAS_WEB_APP_URL) || window.GAS_WEB_APP_URL || '';
+  var SALES_URL = (window.APP_CONFIG && window.APP_CONFIG.GAS_WEB_APP_URL_SALES) || window.GAS_WEB_APP_URL_SALES || '';
 
   function $(sel, el){ if(!el) el=document; return el.querySelector(sel); }
   function $all(sel, el){ if(!el) el=document; return Array.from(el.querySelectorAll(sel)); }
+  var STATE_COLORS = { ENLATADO:'#1f77b4', PAUSTERIZADO:'#ff7f0e', ETIQUETADO:'#2ca02c', FINAL:'#d62728' };
 
-  var STATE_COLORS = {
-    'ENLATADO':     '#1f77b4',
-    'PAUSTERIZADO': '#ff7f0e',
-    'ETIQUETADO':   '#2ca02c',
-    'FINAL':        '#d62728'
-  };
+  async function waitForSB(maxWaitMs){ const t0=Date.now(); while(!(window.SB && window.SBData)){ if(Date.now()-t0>maxWaitMs) throw new Error('SB timeout'); await new Promise(r=>setTimeout(r,80)); } }
 
   document.addEventListener('DOMContentLoaded', function(){
     removeStyleBreakdownCards();
     ensureProdStatesCard().then(function(){
       moveEtiquetasCardNextToStates();
+      ensureWeekSalesCard();
       buildTopRowEqual();
       compactTopKPIs();
     });
-
     registerBarValuePlugin();
     registerStateColorsPlugin();
+    setTimeout(removeStyleBreakdownCards, 700); // por si el donut aparece después
   });
 
   function compactTopKPIs(){
-    var trio = $('#topRow');
-    if (!trio) return;
-    var cards = $all('.card', trio);
+    var row = $('#topRow'); if (!row) return;
+    var cards = $all('.card', row);
     if (cards[0]) cards[0].classList.add('compact');
     if (cards[2]) cards[2].classList.add('compact');
   }
 
   function removeStyleBreakdownCards(){
     var t = $('#styleCountsCard'); if (t && t.parentNode) t.parentNode.removeChild(t);
-    var donut = $('#labelsDonut') || document.querySelector('[data-widget="labels-donut"]');
+    var donut = document.querySelector('#labelsPie, [data-widget="labels-donut"]');
     if (donut) { var card = donut.closest('.card'); if (card && card.parentNode) card.parentNode.removeChild(card); }
     $all('main .card').forEach(function(c){
       var h = c.querySelector('h3, h2, header, .title');
@@ -60,45 +54,33 @@
     }
     return null;
   }
-
   function moveEtiquetasCardNextToStates(){
     var states = $('#prodStatesCard');
     var etiquetas = findCardByTitle('Etiquetas');
     if (!states || !etiquetas) return;
     if (states.parentNode) states.parentNode.insertBefore(etiquetas, states.nextSibling);
   }
-
   function buildTopRowEqual(){
-    if ($('#topRow')) return; // ya creada
-    var main = $('main.container') || $('main');
-    if (!main) return;
-
+    var wrap = $('#topRow');
     var latas = findCardByTitle('Latas vacías') || $all('main .card')[0];
     var states = $('#prodStatesCard');
     var etiquetas = findCardByTitle('Etiquetas');
-
-    if (!latas || !states || !etiquetas) return;
-
-    var wrap = document.createElement('div');
-    wrap.id = 'topRow';
-    wrap.className = 'top-row';
-
-    var anchor = latas;
-    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
-
-    wrap.appendChild(latas);
-    wrap.appendChild(states);
-    wrap.appendChild(etiquetas);
+    var week = $('#weekSalesCard');
+    if (!latas || !states || !etiquetas || !week) return;
+    if (!wrap){
+      wrap = document.createElement('div');
+      wrap.id = 'topRow'; wrap.className = 'top-row';
+      var anchor = latas; if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+    }
+    wrap.appendChild(latas); wrap.appendChild(states); wrap.appendChild(etiquetas); wrap.appendChild(week);
   }
 
+  // ===== Estados (KPI card)
   async function ensureProdStatesCard(){
     if ($('#prodStatesCard')) return;
-    var container = $('main.container') || $('main');
-    if (!container) return;
-
+    var container = document.querySelector('main.container') || document.querySelector('main'); if (!container) return;
     var sec = document.createElement('section');
-    sec.className = 'card';
-    sec.id = 'prodStatesCard';
+    sec.className = 'card'; sec.id = 'prodStatesCard';
     sec.innerHTML = [
       '<div class="flex" style="align-items:center; gap:12px;">',
       '  <h3 style="margin:0;">Estados de producción</h3>',
@@ -111,107 +93,138 @@
       '  <div class="kpi-row"><div class="left"><span class="dot" style="background:'+STATE_COLORS.FINAL+'"></span><span class="label">Final</span></div><span class="num" id="kpi-final">—</span></div>',
       '</div>'
     ].join('');
-
     var firstCard = $all('main .card')[0];
     if (firstCard && firstCard.parentNode) firstCard.parentNode.insertBefore(sec, firstCard);
     else container.appendChild(sec);
-
     await loadProdStatesTotals();
   }
 
   async function loadProdStatesTotals(){
     try{
-      if (!MAIN_URL) return;
-      var url = MAIN_URL + (MAIN_URL.includes('?') ? '&' : '?') + 'action=prodStatusTotals';
-      var res = await fetch(url, { method:'GET' });
-      if (!res.ok) throw new Error('HTTP '+res.status);
-      var json = await res.json();
-      var data = (json && json.data) || {};
+      await waitForSB(5000);
+      const data = await window.SBData.getProdStatusTotals();
+      document.querySelector('#kpi-enlatado').textContent = Number(data.ENLATADO || 0);
+      document.querySelector('#kpi-paus').textContent     = Number(data.PAUSTERIZADO || 0);
+      document.querySelector('#kpi-etiq').textContent     = Number(data.ETIQUETADO || 0);
+      document.querySelector('#kpi-final').textContent    = Number(data.FINAL || 0);
+    }catch(err){
+      console.error('[prodStates] retry in 600ms:', err);
+      setTimeout(loadProdStatesTotals, 600);
+    }
+  }
 
-      var enlat = Number(data.ENLATADO || 0);
-      var paus  = Number(data.PAUSTERIZADO || 0);
-      var etiq  = Number(data.ETIQUETADO || 0);
-      var fin   = Number(data.FINAL || 0);
-
-      var $en = $('#kpi-enlatado'); if ($en) $en.textContent = enlat;
-      var $pa = $('#kpi-paus');     if ($pa) $pa.textContent = paus;
-      var $et = $('#kpi-etiq');     if ($et) $et.textContent = etiq;
-      var $fi = $('#kpi-final');    if ($fi) $fi.textContent = fin;
+  // ===== Ventas semana (usa GAS si lo tenés configurado)
+  function ensureWeekSalesCard(){
+    if ($('#weekSalesCard')) return;
+    var container = document.querySelector('main.container') || document.querySelector('main'); if (!container) return;
+    var sec = document.createElement('section');
+    sec.className = 'card compact'; sec.id = 'weekSalesCard';
+    sec.innerHTML = [
+      '<div>',
+      '  <div class="flex" style="align-items:center; gap:12px;">',
+      '    <h3 style="margin:0;">Ventas (semana)</h3>',
+      '    <div class="spacer"></div>',
+      '  </div>',
+      '  <div id="wk-range" class="wk-range"></div>',
+      '</div>',
+      '<div class="kpi-week">',
+      '  <div class="row"><div class="left"><span>Vendidas (latas)</span><small>remitos</small></div><div style="text-align:right"><div class="val" id="wk-sold-qty">—</div><div class="muted" id="wk-sold-refs"></div></div></div>',
+      '  <div class="row"><div class="left"><span>Entregadas (latas)</span><small>remitos</small></div><div style="text-align:right"><div class="val" id="wk-deliv-qty">—</div><div class="muted" id="wk-deliv-refs"></div></div></div>',
+      '</div>'
+    ].join('');
+    ( $all('main .card')[0]?.parentNode || container ).insertBefore(sec, $all('main .card')[0] || null);
+    loadWeekSales();
+  }
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function fmtDDMM(d){ return pad2(d.getDate()) + '/' + pad2(d.getMonth()+1); }
+  function weekRange(now){
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var day=d.getDay(); var diff=(day===0?-6:1-day);
+    var monday=new Date(d); monday.setDate(d.getDate()+diff); monday.setHours(0,0,0,0);
+    var sunday=new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    return {start:monday, end:sunday, label: fmtDDMM(monday)+' – '+fmtDDMM(sunday)};
+  }
+  function parseDate(dstr){
+    if (!dstr) return null;
+    var d = new Date(dstr); if (!isNaN(d)) return d;
+    var m = String(dstr).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (m){ return new Date(+m[3], (+m[2])-1, +m[1], +(m[4]||0), +(m[5]||0), 0, 0); }
+    return null;
+  }
+  async function loadWeekSales(){
+    if (!SALES_URL) return;
+    var R = weekRange(new Date());
+    $('#wk-range').textContent = 'Semana: ' + R.label;
+    var startIso = R.start.toISOString().slice(0,10);
+    var endIso   = R.end.toISOString().slice(0,10);
+    try{
+      var fast = SALES_URL + (SALES_URL.includes('?')?'&':'?') + 'action=sales_week_summary&start='+encodeURIComponent(startIso)+'&end='+encodeURIComponent(endIso);
+      var fres = await fetch(fast, {method:'GET'});
+      if (fres.ok){
+        var f = await fres.json();
+        if (f && f.ok && f.data){
+          $('#wk-sold-qty').textContent  = Number(f.data.soldQty||0);
+          $('#wk-sold-refs').textContent = 'remitos: ' + Number(f.data.soldRefs||0);
+          $('#wk-deliv-qty').textContent = Number(f.data.delivQty||0);
+          $('#wk-deliv-refs').textContent= 'remitos: ' + Number(f.data.delivRefs||0);
+          return;
+        }
+      }
+    }catch(e){ /* fallback abajo */ }
+    try{
+      var purl = SALES_URL + (SALES_URL.includes('?') ? '&' : '?') + 'action=sales_pending&start='+startIso+'&end='+endIso;
+      var durl = SALES_URL + (SALES_URL.includes('?') ? '&' : '?') + 'action=sales_delivered&start='+startIso+'&end='+endIso;
+      var [pres, dres] = await Promise.all([ fetch(purl), fetch(durl) ]);
+      var pjson = pres.ok ? await pres.json() : { remitos: [] };
+      var djson = dres.ok ? await dres.json() : { delivered: [] };
+      var pend = (pjson && pjson.remitos) || [];
+      var delivered = (djson && djson.delivered) || [];
+      var start = R.start, end=R.end;
+      function inRange(dt){ var d=parseDate(dt); return d && d>=start && d<=end; }
+      var weekPend = pend.filter(function(r){ return inRange(r.timestamp); });
+      var weekDel  = delivered.filter(function(r){ return inRange(r.assignedAt || r.timestamp); });
+      var soldRefs = Object.create(null), soldQty=0;
+      weekPend.forEach(function(r){ soldRefs[r.remito]=1; (r.lines||[]).forEach(l=>soldQty+=Number(l.qty||0)||0); });
+      weekDel.forEach(function(r){ soldRefs[r.remito]=1; (r.lines||[]).forEach(l=>soldQty+=Number(l.qty||0)||0); });
+      var delivQty=0; weekDel.forEach(function(r){ (r.lines||[]).forEach(l=>delivQty+=Number(l.qty||0)||0); });
+      $('#wk-sold-qty').textContent  = soldQty;
+      $('#wk-sold-refs').textContent = 'remitos: ' + Object.keys(soldRefs).length;
+      $('#wk-deliv-qty').textContent = delivQty;
+      $('#wk-deliv-refs').textContent= 'remitos: ' + weekDel.length;
     }catch(err){ console.error(err); }
   }
 
+  // ==== Chart.js plugins (valores dentro + colores fijos por estado) ===
   function registerBarValuePlugin(){
     if (!window.Chart) return;
-    var plugin = {
-      id: 'insideValue',
-      afterDatasetsDraw: function(chart, args, opts){
-        var ctx = chart.ctx;
-        var isBar = chart.config.type === 'bar' || chart.config.type === 'horizontalBar';
-        if (!isBar) return;
-
-        var isHorizontal = chart.options && chart.options.indexAxis === 'y';
-        var datasets = chart.data.datasets || [];
-
-        ctx.save();
-        ctx.fillStyle = (opts && opts.color) || '#fff';
-        ctx.font = (opts && opts.font) || '12px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        datasets.forEach(function(ds, di){
-          var meta = chart.getDatasetMeta(di);
-          if (!meta || meta.hidden) return;
-          (meta.data || []).forEach(function(el, i){
-            var val = ds.data && ds.data[i];
-            if (val == null || val === 0) return;
-            try{
-              var props = el.getProps ? el.getProps(['x','y','base'], true) : { x: el.x, y: el.y, base: el.base };
-              if (isHorizontal){
-                var xb = Math.min(props.x, props.base) + Math.abs(props.x - props.base)/2;
-                ctx.fillText(String(val), xb, props.y);
-              } else {
-                var yb = Math.min(props.y, props.base) + Math.abs(props.y - props.base)/2;
-                ctx.fillText(String(val), props.x, yb);
-              }
-            }catch(_){}
-          });
+    var plugin = { id:'insideValue', afterDatasetsDraw: function(chart){
+      var ctx=chart.ctx, isHor=chart.options&&chart.options.indexAxis==='y';
+      if (chart.config.type!=='bar') return;
+      ctx.save(); ctx.fillStyle='#fff'; ctx.font='12px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      (chart.data.datasets||[]).forEach(function(ds,di){
+        var meta=chart.getDatasetMeta(di); if(!meta||meta.hidden) return;
+        (meta.data||[]).forEach(function(el,i){
+          var v=ds.data&&ds.data[i]; if(v==null||v===0) return;
+          var p=el.getProps?el.getProps(['x','y','base'],true):{x:el.x,y:el.y,base:el.base};
+          if(isHor){ var xb=Math.min(p.x,p.base)+Math.abs(p.x-p.base)/2; ctx.fillText(String(v), xb, p.y); }
+          else { var yb=Math.min(p.y,p.base)+Math.abs(p.y-p.base)/2; ctx.fillText(String(v), p.x, yb); }
         });
-        ctx.restore();
-      }
-    };
-    if (Chart.register) Chart.register(plugin);
-    else if (Chart.plugins && Chart.plugins.register) Chart.plugins.register(plugin);
+      });
+      ctx.restore();
+    }};
+    Chart.register(plugin);
   }
-
   function registerStateColorsPlugin(){
     if (!window.Chart) return;
-    var plugin = {
-      id: 'stateColors',
-      beforeUpdate: function(chart){
-        try{
-          var ds = chart.data && chart.data.datasets;
-          if (!ds) return;
-          ds.forEach(function(dset){
-            var label = (dset.label || '').toString().trim().toUpperCase();
-            var col = {
-              'ENLATADO':     '#1f77b4',
-              'PAUSTERIZADO': '#ff7f0e',
-              'ETIQUETADO':   '#2ca02c',
-              'FINAL':        '#d62728'
-            }[label];
-            if (!col) return;
-            if (Array.isArray(dset.backgroundColor)){
-              dset.backgroundColor = dset.backgroundColor.map(function(){ return col; });
-            } else {
-              dset.backgroundColor = col;
-            }
-            dset.borderColor = col;
-            dset.hoverBackgroundColor = col;
-          });
-        }catch(e){}
-      }
-    };
-    if (Chart.register) Chart.register(plugin);
-    else if (Chart.plugins && Chart.plugins.register) Chart.plugins.register(plugin);
+    var C=STATE_COLORS;
+    var plugin = { id:'stateColors', beforeUpdate:function(chart){
+      try{
+        (chart.data.datasets||[]).forEach(function(d){
+          var col=C[(d.label||'').toString().trim().toUpperCase()]; if(!col) return;
+          d.backgroundColor = col; d.borderColor = col; d.hoverBackgroundColor = col;
+        });
+      }catch(e){}
+    }};
+    Chart.register(plugin);
   }
 })();

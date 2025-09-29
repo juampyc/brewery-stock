@@ -176,3 +176,94 @@ tr.is-busy { opacity: .6; pointer-events: none; }
 .card-small { max-width: 360px; }
 .card-small canvas { max-height: 220px; }
 
+.charts-grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media (max-width: 900px){ .kpi-grid{grid-template-columns:1fr} }
+.pie-card{width:320px;min-width:280px}
+.pie-wrap{display:flex;align-items:center;justify-content:center;height:220px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.muted{color:var(--muted)}
+.big{font-size:32px;font-weight:700;margin:6px 0}
+.container{max-width:1100px;margin:0 auto;padding:16px}
+.chart-wrap{overflow:auto;padding-bottom:8px}
+.chart-wrap canvas{min-width:720px}
+
+
+/* index_overrides.css — v8 */
+/* 4 cards full width aligned with chart; remove any max-widths inside grid */
+
+.top-row {
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:16px;
+  align-items:stretch;
+  width:100%;
+  margin:0 0 16px 0;
+  justify-items:stretch;
+}
+.top-row > .card{
+  margin:0 !important;
+  width:100% !important;
+  max-width:none !important;
+  height:100%;
+}
+
+/* Compact KPI cards */
+.card.compact { padding: 10px !important; }
+.card.compact .big-number { font-size: 28px !important; line-height: 1.1; }
+.card.compact h3, .card.compact h4 { font-size: 14px !important; }
+
+/* Estados de producción (vertical) */
+.kpi-states-vert { display:grid; gap:10px; margin-top:10px; }
+.kpi-row { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  border:1px solid var(--border); background:var(--card); border-radius:12px; padding:8px 12px; }
+.kpi-row .left { display:flex; align-items:center; gap:10px; }
+.kpi-row .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.kpi-row .label { font-weight:600; }
+.kpi-row .num { font-weight:800; font-variant-numeric: tabular-nums; }
+
+/* Week sales card specifics */
+.kpi-week { display:grid; gap:10px; margin-top:8px; }
+.kpi-week .row { display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--border); background:var(--card); border-radius:12px; padding:8px 10px; }
+.kpi-week .row .left { display:flex; flex-direction:column; line-height:1.2; }
+.kpi-week .row .left small { color:var(--muted); }
+.kpi-week .val { font-weight:800; font-variant-numeric:tabular-nums; }
+.wk-range { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+/* ===== Pills de estado (Producción) ===== */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: .2px;
+  line-height: 1;
+  user-select: none;
+  white-space: nowrap;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.status-enlatado      { color: #1f77b4; background: rgba(31,119,180,.12); }
+.status-pausterizado  { color: #ff7f0e; background: rgba(255,127,14,.12); }
+.status-etiquetado    { color: #2ca02c; background: rgba(44,160,44,.12); }
+.status-final         { color: #d62728; background: rgba(214,39,40,.12); }
+
+.status-enlatado .status-dot     { background: #1f77b4; }
+.status-pausterizado .status-dot { background: #ff7f0e; }
+.status-etiquetado .status-dot   { background: #2ca02c; }
+.status-final .status-dot        { background: #d62728; }
+.table td .status-pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* Badges de estado */
+.badge { display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; background:var(--card); border:1px solid var(--border); }
+.badge .dot { width:8px; height:8px; border-radius:50%; background:#999; display:inline-block; }
+.badge.ENLATADO    { color:#1f77b4; border-color:#1f77b4; background:rgba(31,119,180,.08); }
+.badge.ENLATADO .dot { background:#1f77b4; }
+.badge.PAUSTERIZADO{ color:#ff7f0e; border-color:#ff7f0e; background:rgba(255,127,14,.08); }
+.badge.PAUSTERIZADO .dot { background:#ff7f0e; }
+.badge.ETIQUETADO  { color:#2ca02c; border-color:#2ca02c; background:rgba(44,160,44,.08); }
+.badge.ETIQUETADO .dot { background:#2ca02c; }
+.badge.FINAL       { color:#6b21a8; border-color:#6b21a8; background:rgba(107,33,168,.08); }
+.badge.FINAL .dot { background:#6b21a8; }

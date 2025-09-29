@@ -1,174 +1,163 @@
-// js/movements.js
+// js/movements.js (Supabase)
 (function(){
   'use strict';
 
-  var WEB_APP_URL = (window.GAS_WEB_APP_URL || (window.getAppConfig && getAppConfig('GAS_WEB_APP_URL')) || '');
+  const qs  = (s, r)=> (r||document).querySelector(s);
+  const on  = (el, ev, fn)=> el && el.addEventListener(ev, fn, false);
+  const fmtInt = n => (Number(n||0)||0).toString();
 
-  function $(sel, el){ if(!el) el=document; return el.querySelector(sel); }
-  function TOAST(icon, title){
-    return Swal.fire({ toast:true, position:'top-end', icon:icon, title:title, showConfirmButton:false, timer:2000, timerProgressBar:true });
+  function fmtDateAR(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    const offMin = 3*60; // -03:00
+    const ms = d.getTime() - offMin*60*1000;
+    const a = new Date(ms);
+    const DD = String(a.getUTCDate()).padStart(2,'0');
+    const MM = String(a.getUTCMonth()+1).padStart(2,'0');
+    const YYYY = a.getUTCFullYear();
+    const HH = String(a.getUTCHours()).padStart(2,'0');
+    const Min = String(a.getUTCMinutes()).padStart(2,'0');
+    return `${DD}-${MM}-${YYYY} ${HH}:${Min}`;
   }
 
-  var tbl = $('#movsTable tbody');
-  var pagerInfo = $('#pageInfo');
-  var prevBtn = $('#prevPage');
-  var nextBtn = $('#nextPage');
-  var refreshBtn = $('#refreshMovs');
-  var typeFilter = $('#typeFilter');
-  var pageSizeSel = $('#pageSize');
-
-  var urlParams = new URLSearchParams(location.search);
-  var initialType = urlParams.get('type') || '';
-
-  var state = { page: 1, pageSize: 20, total: 0, type: initialType };
-
-  async function callGAS(action, payload){
-    var body = new URLSearchParams();
-    body.set('action', action);
-    body.set('payload', JSON.stringify(payload||{}));
-    try{
-      var res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body });
-      var text = await res.text();
-      if(!res.ok) return { ok:false, error:'HTTP_'+res.status, raw:text };
-      return JSON.parse(text);
-    }catch(e){ return { ok:false, error:String(e) }; }
+  function waitForSB(timeoutMs=7000){
+    return new Promise((res, rej)=>{
+      const t0 = Date.now();
+      (function spin(){
+        if (window.SB && window.SBData) return res();
+        if (Date.now() - t0 > timeoutMs) return rej(new Error('SB timeout'));
+        setTimeout(spin, 60);
+      })();
+    });
   }
+
+  const Toast = Swal.mixin({ toast:true, position:'top-end', showConfirmButton:false, timer:2200, timerProgressBar:true });
+
+  const STATE = {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    type: ''
+  };
+
+  // UI refs
+  const tblBody   = qs('#movsTable tbody');
+  const pageInfo  = qs('#pageInfo');
+  const prevBtn   = qs('#prevPage');
+  const nextBtn   = qs('#nextPage');
+  const refreshBt = qs('#refreshMovs');
+  const typeSel   = qs('#typeFilter');
+  const sizeSel   = qs('#pageSize');
+  const activeBox = qs('#activeFilters');
 
   function renderRows(items){
-    if(!tbl) return;
-    if(!items || !items.length){
-      tbl.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;">Sin datos</td></tr>';
+    if (!tblBody) return;
+    if (!items || !items.length){
+      tblBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;">Sin datos</td></tr>';
       return;
     }
-
-    function short(v){ return v ? String(v).substring(0,8) : ''; }
-    function fmtDate(dateStr){
-      if(!dateStr) return '';
-      var d = new Date(dateStr);
-      if(isNaN(d.getTime())) return dateStr;
-      var dd = String(d.getDate()).padStart(2,'0');
-      var mm = String(d.getMonth()+1).padStart(2,'0');
-      var yy = String(d.getFullYear()).slice(-2);
-      var hh = String(d.getHours()).padStart(2,'0');
-      var mi = String(d.getMinutes()).padStart(2,'0');
-      return `${dd}/${mm}/${yy} ${hh}:${mi}`;
-    }
-
-    var out = [];
-    for(var i=0;i<items.length;i++){
-      var it = items[i];
-      var fullId = it.id || '';
-      var fullRef = it.refId || '';
-      var shortId = short(fullId);
-      var shortRef = short(fullRef);
-      var dateStr = it.dateTime || '';
-      var formattedDate = fmtDate(dateStr);
-
-      out.push('<tr>',
-        '<td><span title="', fullId.replace(/"/g,'&quot;'), '">', shortId, '</span></td>',
-        '<td>', (it.type||''), '</td>',
-        '<td><span title="', fullRef.replace(/"/g,'&quot;'), '">', shortRef, '</span></td>',
-        '<td>', (it.qty!=null?it.qty:''), '</td>',
-        '<td>', (it.provider||''), '</td>',
-        '<td>', (it.lot||''), '</td>',
-        '<td>', formattedDate, '</td>',
-      '</tr>');
-    }
-    tbl.innerHTML = out.join('');
+    tblBody.innerHTML = items.map(it=>{
+      const id  = it.id||'';
+      const ref = it.refId||'';
+      return `
+        <tr>
+          <td><span title="${id.replace(/"/g,'&quot;')}">${id.slice(0,8)}</span></td>
+          <td>${it.type||''}</td>
+          <td><span title="${ref.replace(/"/g,'&quot;')}">${ref ? ref.slice(0,8) : ''}</span></td>
+          <td>${fmtInt(it.qty)}</td>
+          <td>${it.provider||''}</td>
+          <td>${it.lot||''}</td>
+          <td>${fmtDateAR(it.dateTime)}</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function updatePager(){
-    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if(state.page > pages) state.page = pages;
-    if(pagerInfo) pagerInfo.textContent = 'Página ' + state.page + ' de ' + pages + ' (' + state.total + ' registros)';
-    if(prevBtn) prevBtn.disabled = (state.page <= 1);
-    if(nextBtn) nextBtn.disabled = (state.page >= pages);
-  }
-
-  function updateUrlQuery(noReload){
-    var p = new URLSearchParams(location.search);
-    if (state.type) p.set('type', state.type); else p.delete('type');
-    var newUrl = location.pathname + (p.toString() ? ('?' + p.toString()) : '');
-    if (noReload) history.replaceState(null, '', newUrl);
-    else history.pushState(null, '', newUrl);
+    const pages = Math.max(1, Math.ceil(STATE.total / STATE.pageSize));
+    if (pageInfo) pageInfo.textContent = `Página ${STATE.page} de ${pages} (${STATE.total} registros)`;
+    if (prevBtn) prevBtn.disabled = (STATE.page<=1);
+    if (nextBtn) nextBtn.disabled = (STATE.page>=pages);
   }
 
   function updateActiveFilterUI(){
-    var box = document.getElementById('activeFilters');
-    if (!box) return;
-    box.innerHTML = '';
-    if (!state.type){
-      box.style.display = 'none';
-      return;
-    }
-    box.style.display = 'flex';
-
-    var chip = document.createElement('div');
+    if (!activeBox) return;
+    activeBox.innerHTML = '';
+    if (!STATE.type){ activeBox.style.display='none'; return; }
+    activeBox.style.display='flex';
+    const chip = document.createElement('div');
     chip.className = 'btn ghost';
     chip.style.cursor = 'default';
     chip.style.display = 'inline-flex';
     chip.style.alignItems = 'center';
     chip.style.gap = '8px';
-
-    var txt = document.createElement('span');
-    txt.textContent = 'Filtro: ' + state.type;
-
-    var x = document.createElement('button');
+    chip.innerHTML = `<span>Filtro: ${STATE.type}</span>`;
+    const x = document.createElement('button');
     x.type = 'button';
     x.className = 'icon-btn';
-    x.setAttribute('aria-label', 'Quitar filtro');
+    x.setAttribute('aria-label','Quitar filtro');
     x.textContent = '✕';
-    x.onclick = function(){
-      state.type = '';
-      if (typeFilter) typeFilter.value = '';
-      state.page = 1;
-      updateUrlQuery(true);
+    x.onclick = ()=>{
+      STATE.type = '';
+      if (typeSel) typeSel.value = '';
+      STATE.page = 1;
       updateActiveFilterUI();
       loadPage();
     };
-
-    chip.appendChild(txt);
     chip.appendChild(x);
-    box.appendChild(chip);
+    activeBox.appendChild(chip);
   }
 
   async function loadPage(){
-    if(refreshBtn) refreshBtn.disabled = true;
-    var r = await callGAS('listMovements', { page: state.page, pageSize: state.pageSize, type: state.type });
-    if(r && r.ok){
-      state.total = r.data.total || 0;
-      renderRows(r.data.items||[]);
+    try{
+      if (refreshBt) refreshBt.disabled = true;
+      const sz = sizeSel ? Number(sizeSel.value||20) : 20;
+      STATE.pageSize = sz;
+
+      const res = await window.SBData.listMovements({
+        page: STATE.page, pageSize: STATE.pageSize,
+        type: STATE.type || ''
+      });
+      STATE.total = Number(res.total||0);
+      renderRows(res.items||[]);
       updatePager();
-    }else{
+    }catch(err){
+      console.error('[movements]', err);
       renderRows([]);
-      TOAST('error','No se pudo cargar');
+      Toast.fire({ icon:'error', title:'No se pudo cargar' });
+    }finally{
+      if (refreshBt) refreshBt.disabled = false;
     }
-    if(refreshBtn) refreshBtn.disabled = false;
   }
 
-  if(prevBtn) prevBtn.addEventListener('click', function(){
-    if(state.page>1){ state.page--; loadPage(); }
-  });
-  if(nextBtn) nextBtn.addEventListener('click', function(){
-    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if(state.page<pages){ state.page++; loadPage(); }
-  });
-  if(refreshBtn) refreshBtn.addEventListener('click', function(){ loadPage(); });
-  if(typeFilter) typeFilter.addEventListener('change', function(){
-    state.type = typeFilter.value||'';
-    state.page = 1;
-    updateUrlQuery();
-    updateActiveFilterUI();
-    loadPage();
-  });
-  if(pageSizeSel) pageSizeSel.addEventListener('change', function(){
-    var n = parseInt(pageSizeSel.value,10) || 20; state.pageSize = n; state.page = 1; loadPage();
-  });
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    try{
+      await waitForSB();
 
-  document.addEventListener('DOMContentLoaded', function(){
-    if (typeFilter && state.type) typeFilter.value = state.type;
-    updateActiveFilterUI();
-    loadPage(); // con backend ordenado DESC, esto ya trae lo más reciente primero
-  });
+      // init filter (si viene por query ?type=...)
+      const q = new URLSearchParams(location.search);
+      STATE.type = q.get('type') || '';
+      if (typeSel && STATE.type) typeSel.value = STATE.type;
+      updateActiveFilterUI();
 
+      on(prevBtn, 'click', ()=>{ if (STATE.page>1){ STATE.page--; loadPage(); }});
+      on(nextBtn, 'click', ()=>{
+        const pages = Math.max(1, Math.ceil(STATE.total/STATE.pageSize));
+        if (STATE.page<pages){ STATE.page++; loadPage(); }
+      });
+      on(refreshBt, 'click', ()=> loadPage());
+      on(sizeSel, 'change', ()=>{ STATE.page=1; loadPage(); });
+      on(typeSel, 'change', ()=>{
+        STATE.type = typeSel.value || '';
+        STATE.page = 1;
+        updateActiveFilterUI();
+        loadPage();
+      });
+
+      loadPage();
+    }catch(err){
+      console.error('[init movements]', err);
+      Swal.fire('Error','No pude inicializar Movimientos','error');
+    }
+  });
 })();

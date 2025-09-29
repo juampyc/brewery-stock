@@ -1,0 +1,5 @@
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:600;font-size:12px;line-height:1.4}
+.pill.enlatado{background:#e0f2fe;color:#075985;border:1px solid rgba(7,89,133,.15)}
+.pill.pausterizado{background:#fff7ed;color:#9a3412;border:1px solid rgba(154,52,18,.18)}
+.pill.etiquetado{background:#ecfdf5;color:#065f46;border:1px solid rgba(6,95,70,.18)}
+.pill.final{background:#f5f3ff;color:#5b21b6;border:1px solid rgba(91,33,182,.18)}
