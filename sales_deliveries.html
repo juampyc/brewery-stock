@@ -12,24 +12,30 @@
   <!-- Config global -->
   <script src="./js/config.js"></script>
 
-  <!-- Supabase (NUEVO) -->
+  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./js/config.supabase.js"></script>
   <script src="./js/supabase_client.js"></script>
   <script src="./js/supabase_data.js"></script>
 
   <!-- Script de la página -->
-  <script defer src="./js/sales_deliveries.js"></script>
+  <script src="./js/sales_deliveries.js" defer></script>
+
+  <style>
+    .table.lines tr.delivered { opacity: .6; }
+    .table.lines .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .table.lines .chip.ok { background:#e6f4ea; color:#1e8e3e; }
+    .table.lines .chip.no { background:#fde8e8; color:#b42318; }
+    .btn-primary { background:#2d6cdf; color:#fff; }
+    .btn.ghost { background:transparent; border:1px solid #ccc; }
+    th.center, td.center { text-align:center; }
+    td.right { text-align:right; }
+  </style>
 </head>
 <body>
   <!-- Header global -->
   <div id="site-header"></div>
   <script src="./js/header.js" defer></script>
-
-  <style>
-    .table.lines tr.delivered { opacity: .6; }
-    .table.lines .ok { font-weight: 700; }
-  </style>
 
   <main class="container" style="margin-top:16px;">
 

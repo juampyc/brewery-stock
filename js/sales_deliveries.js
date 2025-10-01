@@ -2,327 +2,299 @@
 (function(){
   'use strict';
 
-  // URL del GAS que devuelve pendientes (DB_pedidos)
-  const WEB_APP_URL = (window.APP_CONFIG && (window.APP_CONFIG.GAS_WEB_APP_URL_SALES || window.APP_CONFIG.GAS_WEB_APP_URL))
-    || window.GAS_WEB_APP_URL_SALES
-    || window.GAS_WEB_APP_URL
-    || '';
+  const $  = (s, r=document)=> r.querySelector(s);
+  const $$ = (s, r=document)=> Array.from(r.querySelectorAll(s));
+  const on = (el, ev, fn)=> el && el.addEventListener(ev, fn, false);
 
-  // helpers
-  const qs  = (s, r) => (r||document).querySelector(s);
-  const qsa = (s, r) => Array.from((r||document).querySelectorAll(s));
-  const on  = (el, ev, fn) => el && el.addEventListener(ev, fn, false);
-  const Toast = (icon, title) => Swal.fire({ toast:true, position:'top-end', icon, title, showConfirmButton:false, timer:2000, timerProgressBar:true });
+  const Toast = Swal.mixin({ toast:true, position:'top-end', showConfirmButton:false, timer:2200, timerProgressBar:true });
 
-  function esc(s){
-    return (s==null?'':String(s))
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'",'&#39;');
-  }
-
-  const container = qs('#remitosContainer');
-  const refreshBtn = qs('#refreshBtn');
-  const deliveredTBody = qs('#deliveredTable tbody');
-  const deliveredItemsTBody = qs('#deliveredItemsTable tbody');
-
-  on(refreshBtn, 'click', () => { loadRemitos(); loadDelivered(); });
-
-  // ---------- Pendientes (GAS) ----------
-  async function loadRemitos(){
-    if (!WEB_APP_URL){
-      container.innerHTML = '<div class="card">Configura GAS_WEB_APP_URL_SALES en js/config.js</div>';
-      return;
-    }
-    container.innerHTML = '<div class="card">Cargando…</div>';
-
-    try{
-      // stock FINAL por marca/estilo
-      const stockMap = await (window.SBData?.getFinalStockMap ? window.SBData.getFinalStockMap() : Promise.resolve({}));
-
-      const url = WEB_APP_URL + (WEB_APP_URL.includes('?') ? '&' : '?') + 'action=sales_pending';
-      const res = await fetch(url, { method:'GET' });
-      if (!res.ok) throw new Error('GET '+res.status+' '+res.statusText);
-      const data = await res.json();
-      renderRemitos(data, stockMap||{});
-    }catch(err){
-      console.error(err);
-      container.innerHTML = '<div class="card">Error cargando datos</div>';
-      Toast('error','Error al cargar pendientes');
-    }
-  }
-
-  async function renderRemitos(remitos){
-    const container = qs('#remitos');
-    if (!container) return;
-
-    if (!remitos || remitos.length === 0){
-      container.innerHTML = '<div class="card">Sin remitos pendientes para descontar.</div>';
-      return;
-    }
-
-    container.innerHTML = '';
-
-    // 👇 Pre-cargamos mapa de líneas entregadas por remito
-    const deliveredMaps = await Promise.all(remitos.map(r => deliveredMapFor(r.remito)));
-
-    remitos.forEach((r, i) => {
-      container.appendChild(remitoCard(r, deliveredMaps[i] || {}));
+  function waitForSB(timeoutMs=7000){
+    return new Promise((res, rej)=>{
+      const t0 = Date.now();
+      (function spin(){
+        if (window.SB && window.SBData) return res();
+        if (Date.now()-t0 > timeoutMs) return rej(new Error('SB timeout'));
+        setTimeout(spin, 60);
+      })();
     });
   }
 
+  function normalizeApi(data){
+    let list = [];
+    if (Array.isArray(data)) list = data;
+    else if (data && Array.isArray(data.remitos)) list = data.remitos;
+    else if (data && Array.isArray(data.orders))  list = data.orders;
 
-  function remitoCard(r, deliveredByKey = {}){
-    // r.lines: [{ lineId, brandId, brandName, styleId, styleName, uom, qty, stock }]
-    const rowsHtml = (r.lines||[]).map(line => {
-      const key = String(line.brandId||'') + '|' + String(line.styleId||'') + '|' + String((line.uom||'').toUpperCase());
-      const deliveredQty = Number(deliveredByKey[key]||0);
-      const orderedQty   = Number(line.qty||0);
-      const done = deliveredQty >= orderedQty && orderedQty > 0;
+    return list.map(r => ({
+      remito:  r.remito || r.Remito || r.id || '',
+      client:  r.client || r.cliente || '',
+      cliente: r.cliente || r.client || '',
+      items:   r.lines || r.items || r.detalle || r.details || []
+    }));
+  }
 
-      const statusCell = done
-        ? '<span class="ok" title="Entregado">✓</span>'
-        : '<input type="checkbox" class="chk-line">';
+  // Fila: checkbox habilitado SOLO si puede entregarse completo (stock >= pendiente)
+  function rowHtml(it){
+    const pending = Number(it.qty||0) || 0;
+    const stock   = Number(it.available||0) || 0;
+    const deliverable = stock >= pending;
+    const note  = it.note ? `<div class="small muted">${it.note||''}</div>` : '';
+    const rowCls = deliverable ? '' : ' class="muted"';
+    const badge = deliverable ? `<span class="chip ok" title="Entregable">✓</span>`
+                              : `<span class="chip no" title="Sin stock suficiente">×</span>`;
 
-      const qtyCell = done
-        ? `<span class="muted">${orderedQty}</span>`
-        : `<input type="number" class="qty-inp" min="1" max="${orderedQty}" value="${orderedQty}">`;
+    return `
+      <tr data-item-code="${it.itemCode||''}"
+          data-brand-id="${it.brandId||''}"
+          data-style-id="${it.styleId||''}"
+          data-pending="${pending}"
+          data-available="${stock}"
+          data-deliverable="${deliverable?'1':'0'}"${rowCls}>
+        <td class="center">
+          <input type="checkbox" class="chk" ${deliverable ? '' : 'disabled'}>
+        </td>
+        <td>${it.brandName||''}</td>
+        <td>${it.styleName||''}${note}</td>
+        <td class="right">${pending}</td>
+        <td>${it.uom||'u'}</td>
+        <td class="right">${stock}</td>
+        <td class="center">${badge}</td>
+      </tr>`;
+  }
 
-      const rowCls = done ? ' class="delivered"' : '';
+  function cardHtml(rem){
+    const hasItems = (rem.items||[]).length>0;
+    const itemsHtml = hasItems
+      ? rem.items.map(rowHtml).join('')
+      : `<tr><td colspan="7" class="center muted">Sin ítems</td></tr>`;
 
-      return `
-        <tr${rowCls}
-            data-id="${escapeHtml(line.lineId)}"
-            data-brandid="${escapeHtml(line.brandId||'')}"
-            data-brandname="${escapeHtml(line.brandName||'')}"
-            data-styleid="${escapeHtml(line.styleId||'')}"
-            data-stylename="${escapeHtml(line.styleName||'')}"
-            data-uom="${escapeHtml(line.uom||'')}"
-            data-qty="${orderedQty}">
-          <td>${statusCell}</td>
-          <td>${escapeHtml(line.brandName||'')}</td>
-          <td>${escapeHtml(line.styleName||'')}</td>
-          <td>${qtyCell}</td>
-          <td>${escapeHtml(line.uom||'')}</td>
-          <td class="right">${fmtInt(line.stock||0)}</td>
-        </tr>
-      `;
-    }).join('');
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card__title">
-        <div>
-          <div class="muted small">Remito</div>
-          <div><strong>${escapeHtml(r.remito||'')}</strong></div>
+    return `
+      <div class="card remito" data-remito="${rem.remito}">
+        <div class="card__header" style="gap:12px; align-items:center;">
+          <div>
+            <div class="muted small">Remito</div>
+            <div class="h5">${rem.remito||''}</div>
+          </div>
+          <div>
+            <div class="muted small">Cliente</div>
+            <div class="cliente">${rem.cliente||rem.client||''}</div>
+          </div>
+          <div class="spacer"></div>
+          <div class="btns">
+            <button class="btn btn-primary btn-process" data-remito="${rem.remito}">Registrar entrega</button>
+          </div>
         </div>
-        <div>
-          <div class="muted small">Cliente</div>
-          <div>${escapeHtml(r.client||'')}</div>
+        <div class="card__content">
+          <table class="table compact lines">
+            <thead>
+              <tr>
+                <th class="center" style="width:42px;">
+                  <input type="checkbox" class="chk-all" title="Marcar todos">
+                </th>
+                <th>Marca</th>
+                <th>Estilo</th>
+                <th class="right">Pend.</th>
+                <th>U.M.</th>
+                <th class="right">Stock</th>
+                <th class="center">Estado</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
         </div>
-        <div class="grow"></div>
-        <div>
-          <button class="btn ghost btn-select-all">Descontar TODO</button>
-          <button class="btn primary btn-process">Descontar seleccionados</button>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table class="table lines">
-          <thead>
-            <tr>
-              <th style="width:60px;">Sel./OK</th>
-              <th>Marca</th>
-              <th>Estilo</th>
-              <th style="width:120px;">Cantidad</th>
-              <th style="width:80px;">U.M.</th>
-              <th style="width:120px;" class="right">Stock</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-    `;
+      </div>`;
+  }
 
-    // Botón "Descontar TODO" => tilda solo las filas NO entregadas (las que tienen checkbox)
-    on(card.querySelector('.btn-select-all'), 'click', ()=>{
-      card.querySelectorAll('input.chk-line').forEach(cb=>{
-        cb.checked = true;
-        const tr = cb.closest('tr');
-        const q = tr && tr.querySelector('.qty-inp');
-        if (q) {
-          const max = Number(tr.getAttribute('data-qty')||0) || 0;
-          if (max>0) q.value = String(max);
+  // Construye las líneas seleccionadas: entrega SIEMPRE cantidad completa pendiente del ítem
+  function collectSelectedLines(card){
+    const rows = $$('tbody tr', card);
+    const out = [];
+    rows.forEach(tr=>{
+      const deliverable = tr.getAttribute('data-deliverable') === '1';
+      if (!deliverable) return;
+      const chk = $('.chk', tr);
+      if (!chk || !chk.checked) return;
+
+      const pending = Number(tr.getAttribute('data-pending')||0)||0;
+      if (pending <= 0) return;
+
+      out.push({
+        itemCode:  tr.getAttribute('data-item-code')||'',
+        brandId:   tr.getAttribute('data-brand-id')||'',
+        styleId:   tr.getAttribute('data-style-id')||'',
+        brandName: $('td:nth-child(2)', tr)?.textContent.trim() || '',
+        styleName: $('td:nth-child(3)', tr)?.textContent.trim() || '',
+        uom:       $('td:nth-child(5)', tr)?.textContent.trim() || 'u',
+        qty:       pending  // cantidades iguales a lo pendiente
+      });
+    });
+    return out;
+  }
+
+  async function renderRemitos(rows){
+    const cont = $('#remitosContainer');
+    if (!cont) return;
+
+    const list = normalizeApi(rows);
+
+    if (!list.length){
+      cont.innerHTML = `<div class="muted center" style="padding:16px;">No hay remitos pendientes.</div>`;
+      return;
+    }
+
+    cont.innerHTML = list.map(cardHtml).join('');
+
+    // Estado visual de entregados (marca ✓ si ya se entregó esa línea alguna vez)
+    let deliveredMap = {};
+    try{
+      await waitForSB();
+      deliveredMap = await window.SBData.listDeliveredRefs({ days: 180 });
+    }catch(e){ console.warn('[delivered refs]', e); }
+
+    $$('.card.remito').forEach(card=>{
+      const rem = card.getAttribute('data-remito') || '';
+      const dset = deliveredMap[rem] || {};
+      $$('tbody tr', card).forEach(tr=>{
+        const code = tr.getAttribute('data-item-code') || '';
+        const chip = $('.chip', tr);
+        if (!chip) return;
+        if (code && dset[code]){
+          chip.classList.remove('no'); chip.classList.add('ok');
+          chip.textContent = '✓'; chip.setAttribute('title','Entregado');
+          tr.classList.add('delivered');
         }
       });
+
+      // “Marcar todos”: solo afecta filas entregables
+      const master = $('.chk-all', card);
+      if (master){
+        on(master, 'change', ()=>{
+          const check = master.checked;
+          $$('tbody tr', card).forEach(tr=>{
+            if (tr.getAttribute('data-deliverable')!=='1') return;
+            const cb = $('.chk', tr);
+            if (cb) cb.checked = check;
+          });
+        });
+      }
     });
 
-    // Botón procesar (tu lógica existente que arma lines desde los checkboxes)
-    on(card.querySelector('.btn-process'), 'click', async ()=>{
-      await processRemito(r, card);
+    // Delegación: Registrar entrega
+    on(cont, 'click', async (ev)=>{
+      const btn = ev.target.closest('.btn-process');
+      if (!btn) return;
+
+      const card = btn.closest('.card.remito'); if (!card) return;
+      const remito = card.getAttribute('data-remito')||'';
+      const cliente = $('.cliente', card)?.textContent || '';
+
+      const selected = collectSelectedLines(card);
+      if (!selected.length){
+        return Swal.fire('Sin selección', 'Marcá al menos un ítem entregable.', 'info');
+      }
+
+      try{
+        await waitForSB();
+
+        // 1) Log en sales_processed
+        await window.SBData.logDeliveries({ remito, client: cliente, lines: selected, user: 'web' });
+
+        // 2) Descuento de FINAL (FIFO)
+        await window.SBData.consumeFinalStock({
+          lines: selected.map(l=>({ brandId:l.brandId, styleId:l.styleId, qty:l.qty })),
+          remito
+        });
+
+        Toast.fire({ icon:'success', title:`Entregado ${selected.length} ítems` });
+        await loadRemitos();
+        await refreshDelivered();
+        await refreshDeliveredItems();
+      }catch(err){
+        console.error('[process]', err);
+        Swal.fire('Error', 'No pude registrar la entrega', 'error');
+      }
     });
-
-    return card;
   }
 
-
-  // ---------- Entregados (Supabase) ----------
-  function fmtDate(dateStr){
-    if(!dateStr) return '';
-    const d = new Date(dateStr);
-    if(isNaN(d)) return dateStr;
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const yy = String(d.getFullYear()).slice(-2);
-    const hh = String(d.getHours()).padStart(2,'0');
-    const mi = String(d.getMinutes()).padStart(2,'0');
-    return `${dd}/${mm}/${yy} ${hh}:${mi}`;
-  }
-
-  // Devuelve un mapa por remito: "brandId|styleId|UOM" -> qty entregada (sumada)
-  async function deliveredMapFor(remito){
+  // ========= Tablas inferiores =========
+  async function refreshDelivered(){
+    const tb = $('#deliveredTable tbody'); if (!tb) return;
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:12px;">Cargando...</td></tr>';
     try{
-      const { data, error } = await window.SB
-        .from('sales_processed')
-        .select('brand_id,style_id,uom,qty')
-        .eq('remito', remito);
-      if (error) throw error;
-      const map = {};
-      (data||[]).forEach(r=>{
-        const key = String(r.brand_id||'') + '|' + String(r.style_id||'') + '|' + String((r.uom||'').toUpperCase());
-        map[key] = (map[key]||0) + (Number(r.qty||0)||0);
-      });
-      return map;
-    }catch(e){
-      console.error('[deliveredMapFor]', e);
-      return {};
-    }
-  }
-
-
-  async function loadDelivered(){
-    try{
-      if (deliveredTBody) deliveredTBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:18px;">Cargando…</td></tr>';
-      if (deliveredItemsTBody) deliveredItemsTBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;">Cargando…</td></tr>';
-
-      const [remitos, items] = await Promise.all([
-        window.SBData.listDelivered({ days: 90 }),
-        window.SBData.listDeliveredItems({ days: 90 })
-      ]);
-
-      if (deliveredTBody){
-        deliveredTBody.innerHTML = remitos.length ? remitos.map(it=>`
-          <tr>
-            <td>${esc(it.remito||'')}</td>
-            <td>${esc(it.client||'')}</td>
-            <td style="text-align:right;">${Number(it.items||0)}</td>
-            <td style="text-align:right;">${Number(it.qty||0)}</td>
-            <td>${fmtDate(it.assignedAt||'')}</td>
-            <td>${esc(it.user||'')}</td>
-          </tr>
-        `).join('') : '<tr><td colspan="6" style="text-align:center;padding:18px;">Sin entregas aún</td></tr>';
+      await waitForSB();
+      const rows = await window.SBData.listDelivered({ days: 180 });
+      if (!rows.length){
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:12px;">Sin datos</td></tr>';
+        return;
       }
-
-      if (deliveredItemsTBody){
-        deliveredItemsTBody.innerHTML = items.length ? items.map(it=>`
-          <tr>
-            <td>${esc(it.brandName||'')}</td>
-            <td>${esc(it.styleName||'')}</td>
-            <td>${esc(it.uom||'')}</td>
-            <td style="text-align:right;">${Number(it.remitos||0)}</td>
-            <td style="text-align:right;">${Number(it.qty||0)}</td>
-          </tr>
-        `).join('') : '<tr><td colspan="5" style="text-align:center;padding:18px;">Sin datos</td></tr>';
-      }
-
+      tb.innerHTML = rows.map(r=>{
+        const d = new Date(r.assignedAt||Date.now());
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const yyyy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mi = String(d.getMinutes()).padStart(2,'0');
+        return `<tr>
+          <td>${r.remito||''}</td>
+          <td>${r.client||''}</td>
+          <td>${r.items||0}</td>
+          <td>${r.qty||0}</td>
+          <td>${dd}-${mm}-${yyyy} ${hh}:${mi}</td>
+          <td>${r.user||''}</td>
+        </tr>`;
+      }).join('');
     }catch(err){
       console.error('[delivered]', err);
-      if (deliveredTBody) deliveredTBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:18px;">Error</td></tr>';
-      if (deliveredItemsTBody) deliveredItemsTBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;">Error</td></tr>';
-      Toast('error','Error al cargar entregados');
+      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:12px;color:#b00;">Error</td></tr>';
     }
   }
 
-  // ---------- Procesar (descontar y loguear) ----------
-  async function process(remito, rowEls){
-    if (!rowEls || !rowEls.length){
-      Toast('warning','No hay ítems seleccionados');
-      return;
+  async function refreshDeliveredItems(){
+    const tb = $('#deliveredItemsTable tbody'); if (!tb) return;
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;">Cargando...</td></tr>';
+    try{
+      await waitForSB();
+      const rows = await window.SBData.listDeliveredItems({ days: 180 });
+      if (!rows.length){
+        tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;">Sin datos</td></tr>';
+        return;
+      }
+      tb.innerHTML = rows.map(r=>`
+        <tr>
+          <td>${r.brandName||''}</td>
+          <td>${r.styleName||''}</td>
+          <td>${r.uom||''}</td>
+          <td>${r.remitos||0}</td>
+          <td>${r.qty||0}</td>
+        </tr>
+      `).join('');
+    }catch(err){
+      console.error('[delivered items]', err);
+      tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;color:#b00;">Error</td></tr>';
     }
-    const lines = rowEls.map(tr=>{
-      const tds = tr.children;
-      return {
-        lineId: tr.getAttribute('data-id'),
-        itemCode: tds[1].textContent.trim(),
-        brandId: tr.getAttribute('data-brandid')||'',
-        brandName: tr.getAttribute('data-brandname')||'',
-        styleId: tr.getAttribute('data-styleid')||'',
-        styleName: tr.getAttribute('data-stylename')||'',
-        qty: Number(tds[4].textContent.trim()||0),
-        uom: tr.getAttribute('data-uom')||''
-      };
-    });
+  }
 
-    const ok = await Swal.fire({
-      icon:'question',
-      title:'¿Confirmar descuento de stock?',
-      html:`Remito <b>${esc(remito.remito)}</b> · Ítems: <b>${lines.length}</b>`,
-      showCancelButton:true, confirmButtonText:'Sí, descontar', cancelButtonText:'Cancelar'
-    });
-    if (!ok.isConfirmed) return;
+  // ========= Carga =========
+  async function loadRemitos(){
+    const cont = $('#remitosContainer');
+    if (cont) cont.innerHTML = `<div class="center muted" style="padding:16px;">Cargando los remitos…</div>`;
 
     try{
-      disableAll(true);
-
-      // 1) baja de FINAL
-      await window.SBData.consumeFinalStock({ lines, remito: remito.remito||'' });
-
-      // 2) log de entregas
-      await window.SBData.logDeliveries({
-        remito: remito.remito,
-        client: remito.client || remito.cliente || '',
-        lines,
-        user: (window.APP_USER||'web')
-      });
-
-      // 3) marcar en GAS (opcional)
-      try{
-        if (WEB_APP_URL){
-          const url = WEB_APP_URL + (WEB_APP_URL.includes('?') ? '&' : '?') + 'action=sales_mark_delivered';
-          await fetch(url, {
-            method:'POST',
-            headers:{'Content-Type':'text/plain;charset=utf-8'},
-            body: JSON.stringify({ remito: remito.remito, lineIds: lines.map(l=>l.lineId) })
-          });
-        }
-      }catch(_){ /* si falla igual quedó en Supabase */ }
-
-      Toast('success','Descontado');
-      loadRemitos();
-      loadDelivered();
-
+      await waitForSB();
+      const rows = await window.SBData.listPendingRemitos();
+      await renderRemitos(rows);
     }catch(err){
-      console.error('[process]', err);
-      if (String(err.message||'').includes('NO_FINAL_STOCK')){
-        Swal.fire('Sin stock','No hay stock FINAL suficiente para al menos uno de los ítems.','error');
-      }else{
-        Swal.fire('Error', String(err.message||err), 'error');
-      }
-    }finally{
-      disableAll(false);
+      console.error('[loadRemitos]', err);
+      if (cont) cont.innerHTML = `<div class="center" style="color:#b00;padding:16px;">Error cargando remitos</div>`;
+      Toast.fire({ icon:'error', title:'No pude cargar los remitos' });
     }
   }
 
-  function disableAll(dis){
-    qsa('button').forEach(b=> b.disabled = dis);
-    qsa('input[type=checkbox]').forEach(c=>{
-      if (c.getAttribute('disabled')==null) c.disabled = dis;
-    });
-  }
-
-  // init
-  loadRemitos();
-  loadDelivered();
+  // ========= Init =========
+  document.addEventListener('DOMContentLoaded', ()=>{
+    on($('#refreshBtn'), 'click', ()=>{ loadRemitos(); refreshDelivered(); refreshDeliveredItems(); });
+    loadRemitos().catch(e=>console.error('init remitos', e));
+    refreshDelivered().catch(e=>console.error('init delivered', e));
+    refreshDeliveredItems().catch(e=>console.error('init delivered items', e));
+  });
 })();

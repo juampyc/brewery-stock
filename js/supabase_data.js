@@ -64,8 +64,8 @@
   SBData.getProdStatusTotals = async function(){ const s=await SBData.getDashboardSummary(); return s.prodStatusTotals; };
   SBData.getEmptyCansNet = async function(){ const s=await SBData.getDashboardSummary(); return Number(s.emptyCansTotal||0); };
   SBData.getLabelsNet = async function(){ const s=await SBData.getDashboardSummary(); return Number(s.labelsTotal||0); };
-  // === STOCK FINAL POR MARCA/ESTILO ===
-  // Devuelve { "brandId|styleId": qty } usando marca/estilo EFECTIVOS (label_* si existen)
+
+  // === STOCK FINAL EFECTIVO (label_* si existen) ===
   SBData.getFinalStockMap = async function(){
     const { data, error } = await sb().from('productions')
       .select('brand_id,style_id,label_brand_id,label_style_id,qty,status')
@@ -86,16 +86,13 @@
     const from = (page-1)*pageSize;
     const to   = from + pageSize - 1;
 
-    // Base query
     let q = sb().from('movements')
       .select('id,type,ref_id,qty,provider,lot,date_time', { count:'exact' })
       .order('date_time', { ascending:false })
       .range(from, to);
 
-    // Filtro por tipo exacto (ENUM ok)
     if (type) q = q.eq('type', type);
 
-    // Filtro por "prefijo" -> traducimos a lista de tipos válidos (ENUM)
     if (typePrefix) {
       const pref = String(typePrefix).toUpperCase();
       let types = [];
@@ -106,7 +103,6 @@
       } else if (pref === 'PROD' || pref === 'PRODUCTION') {
         types = ['PROD_FINAL_IN','PROD_SCRAP'];
       } else {
-        // fallback genérico si en algún momento agregás otros prefijos
         types = [pref + '_ADD', pref + '_CONS', pref + '_SCRAP'];
       }
       q = q.in('type', types);
@@ -127,7 +123,6 @@
 
     return { total: count||0, items };
   };
-
 
   SBData.listStyles = async function(){
     const [styles, brands] = await Promise.all([ sb().from('styles').select('brand_id,style_id,name,color,show_always'), sb().from('brands').select('id,name') ]);
@@ -169,61 +164,37 @@
     const now=new Date().toISOString(); const id=_newId('EC');
     const { error } = await sb().from('empty_cans').insert([{ id, qty:Number(qty||0)||0, provider:provider||'', lot:lot||'', date_time:now, last_modified:now }]);
     if (error) throw error;
-    await sb().from('movements').insert([{ id:_newId('MV'), type:'EMPTY_CANS_ADD', ref_id:id, qty:Number(qty||0)||0, provider:provider||'', lot:lot||'', date_time:now }]);
+    await sb().from('movements').insert([{ id:_newId('MV'), type:'EMPTY_CANS_ADD', ref_id:id, qty:Number(qty||0)||0, provider:'', lot:'', date_time:now }]);
     _invalidateDash(); return { id };
   };
   SBData.addLabel = async function({ qty, provider, lot, isCustom, brandId, styleId, name }){
     const now=new Date().toISOString(); const id=_newId('LB');
     const row={ id, brand_id:brandId||'', style_id:styleId||'', name:name||'', is_custom:!!isCustom, qty:Number(qty||0)||0, provider:provider||'', lot:lot||'', date_time:now, last_modified:now };
     const { error } = await sb().from('labels').insert([row]); if (error) throw error;
-    await sb().from('movements').insert([{ id:_newId('MV'), type:'LABEL_ADD', ref_id:id, qty:Number(qty||0)||0, provider:provider||'', lot:lot||'', date_time:now }]);
+    await sb().from('movements').insert([{ id:_newId('MV'), type:'LABEL_ADD', ref_id:id, qty:Number(qty||0)||0, provider:'', lot:'', date_time:now }]);
     _invalidateDash(); return { id };
   };
-  SBData.createStyle = async function({ brandId, name, color, showAlways }){
-    const styleId=_newId('ST'); const { error } = await sb().from('styles').insert([{ brand_id:brandId, style_id:styleId, name, color:color||'#000000', show_always:!!showAlways }]); if (error) throw error; return { brandId, styleId };
-  };
+  SBData.createStyle = async function({ brandId, name, color, showAlways }){ const styleId=_newId('ST'); const { error } = await sb().from('styles').insert([{ brand_id:brandId, style_id:styleId, name, color:color||'#000000', show_always:!!showAlways }]); if (error) throw error; return { brandId, styleId }; };
+
   SBData.createProduction = async function({ qty, brandId, styleId }){
-    // validar stock vacío suficiente
     const summary = await SBData.getSummaryCounts();
     if ((summary.emptyCansTotal||0) < Number(qty||0)){
       const err = new Error('NO_EMPTY_STOCK'); err.code='NO_EMPTY_STOCK'; err.available=summary.emptyCansTotal; err.needed=qty;
       throw err;
     }
-
     const now = new Date().toISOString();
-    const id  = 'PR-'+crypto.randomUUID();
+    const id  = 'PR-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2));
 
-    // 1) Producción
     const { error:insProdErr } = await sb().from('productions').insert([{
-      id,
-      brand_id: brandId || null,
-      style_id: styleId || null,
-      qty: Number(qty||0)||0,
-      status: 'ENLATADO',
-      label_brand_id: null,
-      label_style_id: null,
-      label_name: null,
-      created_at: now,
-      updated_at: now
-    }]);
-    if (insProdErr) throw insProdErr;
+      id, brand_id: brandId || null, style_id: styleId || null,
+      qty: Number(qty||0)||0, status: 'ENLATADO',
+      label_brand_id: null, label_style_id: null, label_name: null,
+      created_at: now, updated_at: now
+    }]); if (insProdErr) throw insProdErr;
 
-    // 2) Movimiento (consumo de latas vacías)
-    const { error:movErr } = await sb().from('movements').insert([{
-      type:'EMPTY_CANS_CONS', ref_id:'PROD:'+id, qty:Number(qty||0)||0, provider:'', lot:'', date_time:now
-    }]);
-    if (movErr) throw movErr;
+    const { error:movErr } = await sb().from('movements').insert([{ type:'EMPTY_CANS_CONS', ref_id:'PROD:'+id, qty:Number(qty||0)||0, provider:'', lot:'', date_time:now }]); if (movErr) throw movErr;
 
-    // 3) Historial: NO mandamos "from" (queda NULL). Solo "to"
-    const { error:histErr } = await sb().from('prod_history').insert([{
-      id:'PH-'+crypto.randomUUID(),
-      prod_id:id,
-      from: null,            // ← explícito si lo preferís
-      to:'ENLATADO',
-      date_time:now,
-      note:''
-    }]);
-    if (histErr) throw histErr;
+    const { error:histErr } = await sb().from('prod_history').insert([{ id:'PH-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)), prod_id:id, from:null, to:'ENLATADO', date_time:now, note:'' }]); if (histErr) throw histErr;
 
     return { id };
   };
@@ -241,17 +212,16 @@
     }
     throw new Error('INVALID_SOURCE');
   };
+
   SBData.advanceProduction = async function({ prodId, to, labelBrandId, labelStyleId, labelName }){
     to=String(to||'').toUpperCase(); const now=new Date().toISOString();
     const { data:rec, error } = await sb().from('productions').select('id,brand_id,style_id,qty,status,label_brand_id,label_style_id,label_name').eq('id', prodId).limit(1).single(); if (error) throw error;
     const from=String(rec.status||'').toUpperCase(); if (from===to) return { id:prodId, status:from }; if (from==='FINAL'){ const e=new Error('FINAL_IS_TERMINAL'); e.code='FINAL_IS_TERMINAL'; throw e; }
     if (to==='PAUSTERIZADO' || to==='ETIQUETADO'){ const { data:hist } = await sb().from('prod_history').select('to').eq('prod_id', prodId); let already=false; (hist||[]).forEach(h=>{ const t=String(h.to||'').toUpperCase(); if (t===to) already=true; }); if (already){ const e=new Error('BACKWARD_NOT_ALLOWED_ONCE_VISITED'); e.from=from; e.to=to; throw e; } }
     const need=Number(rec.qty||0)||0;
-    // --- ETIQUETADO ---
+
     if (to==='ETIQUETADO'){
-      if (!labelStyleId && !labelName){
-        const e=new Error('MISSING_LABEL_SELECTION'); throw e;
-      }
+      if (!labelStyleId && !labelName){ const e=new Error('MISSING_LABEL_SELECTION'); throw e; }
       const norm = s => String(s||'').trim().toUpperCase();
       const isCustom = !labelStyleId;
       let available = 0;
@@ -261,11 +231,9 @@
 
       const keys = [];
       if (isCustom){
-        // canónica custom: ||NAME (y compat histórica con brand/style)
         keys.push(`||${norm(labelName)}`);
         keys.push(`${norm(labelBrandId)}|${norm(labelStyleId)}|${norm(labelName)}`);
       }else{
-        // no custom: BRAND|STYLE|NAME
         keys.push(`${norm(labelBrandId)}|${norm(labelStyleId)}|${norm(labelName)}`);
       }
 
@@ -275,36 +243,39 @@
         available += (a - c);
       });
 
-      if (available < need){
-        const e=new Error('NO_LABEL_STOCK'); e.available=available; e.needed=need; throw e;
-      }
+      if (available < need){ const e=new Error('NO_LABEL_STOCK'); e.available=available; e.needed=need; throw e; }
 
-      // guardar selección
-      await sb().from('productions').update({
-        label_brand_id: labelBrandId||'', label_style_id: labelStyleId||'', label_name: labelName||'', updated_at: now
-      }).eq('id', prodId);
-
-      // registrar consumo con clave CANÓNICA normalizada
-      const refKey = isCustom
-        ? `||${norm(labelName)}`
-        : `${norm(labelBrandId)}|${norm(labelStyleId)}|${norm(labelName)}`;
-
-      await sb().from('movements').insert([{
-        type:'LABEL_CONS', ref_id:'LABEL:'+refKey, qty: need, provider:'', lot:'', date_time: now
-      }]);
+      await sb().from('productions').update({ label_brand_id: labelBrandId||'', label_style_id: labelStyleId||'', label_name: labelName||'', updated_at: now }).eq('id', prodId);
+      const refKey = isCustom ? `||${norm(labelName)}` : `${norm(labelBrandId)}|${norm(labelStyleId)}|${norm(labelName)}`;
+      await sb().from('movements').insert([{ type:'LABEL_CONS', ref_id:'LABEL:'+refKey, qty: need, provider:'', lot:'', date_time: now }]);
     }
 
     if (to==='FINAL'){ if (!(from==='PAUSTERIZADO' || from==='ETIQUETADO')){ const e=new Error('FINAL_REQUIRES_P_OR_E'); e.from=from; throw e; } }
     if (to==='FINAL'){
-      const effBrand=String(rec.label_brand_id||rec.brand_id||''), effStyle=String(rec.label_style_id||rec.style_id||''), effName=String(rec.label_name||'');
-      const { data:others } = await sb().from('productions').select('id,qty,status,label_brand_id,label_style_id,label_name,brand_id,style_id').eq('status','FINAL');
-      let target=null; (others||[]).forEach(o=>{ const b=String(o.label_brand_id||o.brand_id||''); const s=String(o.label_style_id||o.style_id||''); const n=String(o.label_name||''); if (b===effBrand && s===effStyle && n===effName) target=o; });
-      if (target){ const newQty=(Number(target.qty||0)||0)+need; await sb().from('productions').update({ qty:newQty }).eq('id', target.id);
+      const effBrand=String(rec.label_brand_id||rec.brand_id||'');
+      const effStyle=String(rec.label_style_id||rec.style_id||'');
+
+      const { data:others } = await sb().from('productions')
+        .select('id,qty,status,label_brand_id,label_style_id,brand_id,style_id')
+        .eq('status','FINAL');
+
+      let target=null;
+      (others||[]).forEach(o=>{
+        const b=String(o.label_brand_id||o.brand_id||'');
+        const s=String(o.label_style_id||o.style_id||'');
+        if (b===effBrand && s===effStyle) target=o;
+      });
+
+      if (target){
+        const newQty=(Number(target.qty||0)||0)+need;
+        await sb().from('productions').update({ qty:newQty }).eq('id', target.id);
         await sb().from('movements').insert([{ id:_newId('MV'), type:'PROD_FINAL_IN', ref_id:'PROD:'+rec.id, qty:need, provider:'', lot:'', date_time:now }]);
-        await sb().from('prod_history').insert([{ id:_newId('PH'), prod_id:rec.id, from:from, to:'FINAL', date_time:now, note:'Fusionado con FINAL existente' }]);
-        await sb().from('productions').delete().eq('id', rec.id); _invalidateDash(); return { id:String(target.id), status:'FINAL', merged:true, qty:newQty };
+        await sb().from('prod_history').insert([{ id:_newId('PH'), prod_id:rec.id, from:from, to:'FINAL', date_time:now, note:'Fusionado FINAL (brand/style)' }]);
+        await sb().from('productions').delete().eq('id', rec.id);
+        _invalidateDash(); return { id:String(target.id), status:'FINAL', merged:true, qty:newQty };
       }
     }
+
     await sb().from('productions').update({ status:to, updated_at:now }).eq('id', prodId);
     if (to==='FINAL'){ await sb().from('movements').insert([{ id:_newId('MV'), type:'PROD_FINAL_IN', ref_id:'PROD:'+rec.id, qty:need, provider:'', lot:'', date_time:now }]); }
     await sb().from('prod_history').insert([{ id:_newId('PH'), prod_id:rec.id, from:from, to:to, date_time:now, note:'' }]);
@@ -320,17 +291,41 @@
     return { soldQty: delivQty, soldRefs: delivRefs.size, delivQty, delivRefs: delivRefs.size, rangeLabel: pad2(start.getDate())+'/'+pad2(start.getMonth()+1)+' – '+pad2(end.getDate())+'/'+pad2(end.getMonth()+1) };
   };
 
-  // ========= ENTREGAS (leer de Supabase) =========
-  // ===== ENTREGAS (Supabase) =====
+  // ========= ENTREGAS (leer y escribir en Supabase) =========
 
-  // 1) Registrar ENTREGAS en sales_processed (incluye line_id requerido)
+  // View remitos pendientes
+  SBData.listPendingRemitos = async function(){
+    const { data, error } = await sb()
+      .from('remitos_pending_view')
+      .select('remito, cliente, lines')
+      .order('remito', { ascending: true });
+    if (error) throw error;
+
+    return (data||[]).map(r => ({
+      remito: r.remito,
+      cliente: r.cliente,
+      items: (r.lines||[]).map(l => ({
+        lineId:   `${r.remito}|${l.item_code||''}`,
+        itemCode: l.item_code || '',
+        brandId:  l.brand_id  || '',
+        brandName:l.brand_name|| '',
+        styleId:  l.style_id  || '',
+        styleName:l.style_name|| '',
+        uom:      l.uom       || 'u',
+        qty:      Number(l.qty||0)||0,        // pendiente
+        available:Number(l.available||0)||0,  // stock FINAL disponible
+        okToSelect: (Number(l.qty||0) <= Number(l.available||0)),
+        note:     l.note || ''
+      }))
+    }));
+  };
+
+  // 1) Registrar ENTREGAS (lineas completas al sales_processed) – REAL
   SBData.logDeliveries = async function({ remito, client='', lines=[], user='web' }){
     const now = new Date().toISOString();
 
     const rows = (lines||[]).map((l)=>({
-      // genera un ID único compatible con uuid/text
-      line_id: (crypto && crypto.randomUUID) ? crypto.randomUUID()
-                                            : ('ln_' + Math.random().toString(36).slice(2)),
+      line_id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('ln_' + Math.random().toString(36).slice(2)),
       processed_at: now,
       remito: String(remito||''),
       client: String(client||''),
@@ -339,27 +334,21 @@
       brand_name: String(l.brandName||''),
       style_id: String(l.styleId||''),
       style_name: String(l.styleName||''),
-      uom: String(l.uom||''),
+      uom: String(l.uom||'u'),
       qty: Number(l.qty||0)||0,
       user: String(user||'')
     }));
 
     if (!rows.length) return { inserted: 0 };
-
     const { error } = await sb().from('sales_processed').insert(rows);
     if (error) throw error;
     return { inserted: rows.length };
   };
 
-
-  // 2) Baja de stock FINAL por líneas (match por marca/estilo efectivos)
-  //    lines: [{ brandId, styleId, qty }]
-  // === CONSUMIR STOCK FINAL (descuenta de productions FINAL en FIFO) ===
-  // lines: [{brandId, styleId, qty, itemCode?, brandName?, styleName?, uom?}], remito: string
+  // 2) Descuento de stock FINAL (FIFO por created_at) – REAL
   SBData.consumeFinalStock = async function({ lines=[], remito='' }={}){
     if (!lines.length) return { consumed: 0 };
 
-    // Traigo todas las FINAL y armo buckets por efectivos (b|s)
     const { data: finals, error } = await sb()
       .from('productions')
       .select('id, qty, status, brand_id, style_id, label_brand_id, label_style_id, created_at')
@@ -375,14 +364,12 @@
     });
     Object.values(bucket).forEach(arr => arr.sort((a,b)=> String(a.created_at).localeCompare(String(b.created_at)))); // FIFO
 
-    // Necesidades por key
     const need = {};
     (lines||[]).forEach(l=>{
       const k = String(l.brandId||'') + '|' + String(l.styleId||'');
       need[k] = (need[k]||0) + (Number(l.qty||0)||0);
     });
 
-    // Verificación previa
     for (const k of Object.keys(need)){
       const have = (bucket[k]||[]).reduce((a,r)=>a+(r.qty||0),0);
       if (have < need[k]){
@@ -402,20 +389,18 @@
         const take = Math.min(r.qty, rest);
         const newQty = r.qty - take;
 
-        // Update de producción
         const { error: uErr } = await sb().from('productions').update({ qty:newQty, updated_at: now }).eq('id', r.id);
         if (uErr) throw uErr;
 
-        // Movimiento (si tu enum no tiene PROD_FINAL_OUT, lo ignoro)
         try{
           const { error: mErr } = await sb().from('movements').insert([{
             type: 'PROD_FINAL_OUT',
             ref_id: remito ? ('REM:'+String(remito)) : ('PROD:'+r.id),
             qty: take, provider:'', lot:'', date_time: now
           }]);
-          if (mErr && mErr.code === '22P02'){ /* enum no incluye PROD_FINAL_OUT: lo ignoro */ }
+          if (mErr && mErr.code === '22P02'){ /* enum no incluye PROD_FINAL_OUT: ignorar */ }
           else if (mErr){ console.warn('[movements warn]', mErr); }
-        }catch(_){ /* ignoro */ }
+        }catch(_){}
 
         total += take;
         rest  -= take;
@@ -426,9 +411,7 @@
     return { consumed: total };
   };
 
-
-
-  // Lista de remitos entregados (agregado simple por remito) últimos N días
+  // Entregas agregadas por remito (últimos N días)
   SBData.listDelivered = async function({ days=60 }={}){
     const since = new Date(); since.setDate(since.getDate() - Number(days||60));
     const { data, error } = await sb()
@@ -440,12 +423,9 @@
     const byRemito = {};
     (data||[]).forEach(r=>{
       const key = String(r.remito||'');
-      if (!byRemito[key]) byRemito[key] = {
-        remito: key, client: r.client||'', items: 0, qty: 0, assignedAt: r.processed_at, user: r.user||''
-      };
+      if (!byRemito[key]) byRemito[key] = { remito: key, client: r.client||'', items: 0, qty: 0, assignedAt: r.processed_at, user: r.user||'' };
       byRemito[key].items += 1;
       byRemito[key].qty   += Number(r.qty||0)||0;
-      // primera fecha
       if (r.processed_at && (!byRemito[key].assignedAt || r.processed_at < byRemito[key].assignedAt)){
         byRemito[key].assignedAt = r.processed_at;
       }
@@ -471,10 +451,93 @@
       map[key].qty += Number(r.qty||0)||0;
       map[key].remitosSet.add(String(r.remito||''));
     });
-    return Object.values(map).map(x=>({
-      brandName: x.brandName, styleName: x.styleName, uom: x.uom,
-      remitos: x.remitosSet.size, qty: x.qty
-    }));
+    return Object.values(map).map(x=>({ brandName: x.brandName, styleName: x.styleName, uom: x.uom, remitos: x.remitosSet.size, qty: x.qty }));
+  };
+
+  // Mapa de líneas entregadas por remito
+  SBData.listDeliveredRefs = async function({ days=120 } = {}){
+    const since = new Date(); since.setDate(since.getDate() - Number(days||120));
+    const { data, error } = await sb()
+      .from('sales_processed')
+      .select('remito,item_code')
+      .gte('processed_at', since.toISOString());
+    if (error) throw error;
+
+    const map = {};
+    (data||[]).forEach(r=>{
+      const rem = String(r.remito||'');
+      const code = String(r.item_code||'');
+      if (!map[rem]) map[rem] = {};
+      if (code) map[rem][code] = true;
+    });
+    return map;
+  };
+
+  // === KPIs de la semana (desde Supabase) ===
+  // - "Vendidas": suma de líneas de remitos (órdenes) en la semana -> remitos_lines_view
+  // - "Entregadas": suma de sales_processed en la semana
+  // Ambos cuentan latas (ej: item_code que empiece con "0.5-") y remitos únicos.
+  SBData.getWeekKPIs = async function({ start, end } = {}){
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function weekRange(now){
+      const d = new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      const diff = (d.getDay()===0 ? -6 : 1-d.getDay()); // lunes
+      const mon = new Date(d); mon.setDate(d.getDate()+diff); mon.setHours(0,0,0,0);
+      const sun = new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
+      return { start: mon, end: sun };
+    }
+    if (!start || !end){
+      const R = weekRange(new Date());
+      start = R.start; end = R.end;
+    }
+    const startIso = start.toISOString();
+    const endIso   = end.toISOString();
+
+    // 1) Vendidas (órdenes) desde la vista "remitos_lines_view"
+    //    Campos mínimos: ts, remito, item_code, qty
+    const { data: soldRows, error: soldErr } = await sb()
+      .from('remitos_lines_view')
+      .select('ts, remito, item_code, qty')
+      .gte('ts', startIso)
+      .lte('ts', endIso);
+    if (soldErr) throw soldErr;
+
+    let soldQty = 0;
+    const soldRemSet = new Set();
+    (soldRows||[]).forEach(r => {
+      const code = String(r.item_code||'').toUpperCase();
+      if (code.startsWith('0.5-')) {
+        soldQty += Number(r.qty||0)||0;
+        soldRemSet.add(String(r.remito||''));
+      }
+    });
+
+    // 2) Entregadas desde sales_processed
+    const { data: delivRows, error: delivErr } = await sb()
+      .from('sales_processed')
+      .select('processed_at, remito, item_code, qty')
+      .gte('processed_at', startIso)
+      .lte('processed_at', endIso);
+    if (delivErr) throw delivErr;
+
+    let delivQty = 0;
+    const delivRemSet = new Set();
+    (delivRows||[]).forEach(r=>{
+      const code = String(r.item_code||'').toUpperCase();
+      if (code.startsWith('0.5-')) {
+        delivQty += Number(r.qty||0)||0;
+        delivRemSet.add(String(r.remito||''));
+      }
+    });
+
+    const rangeLabel = `${pad2(start.getDate())}/${pad2(start.getMonth()+1)} – ${pad2(end.getDate())}/${pad2(end.getMonth()+1)}`;
+    return {
+      rangeLabel,
+      soldQty,         // Vendidas (latas)
+      soldRemitos: soldRemSet.size,
+      deliveredQty: delivQty,     // Entregadas (latas)
+      deliveredRemitos: delivRemSet.size
+    };
   };
 
 
