@@ -97,7 +97,7 @@
             <input type="number" min="1" step="1" name="qty" required placeholder="Ej: 500" />
           </label>
           <label class="field span-2">
-            <span>Marca / Estilo</span>
+            <span>Estilo de producción</span>
             <select id="prodStyleCombo" name="styleCombo" required></select>
             <div id="prodStylePreview" class="help"></div>
           </label>
@@ -112,52 +112,70 @@
 
   <!-- Etiquetar producción -->
   <div id="labelProdModal" class="modal" aria-hidden="true">
-    <div class="modal__content">
-      <div class="modal__header">
-        <h3>Etiquetar producción</h3>
+    <div class="modal__content labels-compact">
+      <header class="modal__header">
+        <h3 style="display:flex;align-items:center;gap:.5rem;">
+          🏷️ Etiquetar producción
+          <small id="labelProdPreview" class="muted" style="font-weight:400;"></small>
+        </h3>
         <button id="closeLabelProd" class="icon-btn" type="button" aria-label="Cerrar">✕</button>
-      </div>
+      </header>
 
       <form id="labelProdForm" class="form">
         <input type="hidden" name="prodId">
 
-        <div class="grid grid-3 align-start">
-          <div class="field span-2">
-            <label>Tipo de etiquetado</label>
-            <div style="display:flex; gap:18px; align-items:center; margin-top:6px;">
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="radio" name="labelMode" value="same" checked>
-                <span>Mismo estilo</span>
+        <!-- Modo -->
+        <div class="field">
+          <label>Tipo de etiquetado</label>
+          <div class="segmented" style="margin-top:.5rem;">
+            <label><input type="radio" name="labelMode" value="same" checked><span>Marca / Estilo</span></label>
+            <label><input type="radio" name="labelMode" value="custom"><span>Personalizada</span></label>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:.75rem;gap:12px;">
+          <!-- Card Marca/Estilo -->
+          <div class="card soft" id="brandStyleBox">
+            <div class="grid grid-2" style="gap:.75rem;">
+              <label class="field">
+                <span>Marca</span>
+                <select id="labelBrandSelect"></select>
               </label>
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="radio" name="labelMode" value="custom">
-                <span>Personalizada</span>
+
+              <label class="field">
+                <span>Estilo</span>
+                <select id="labelStyleSelect"></select>
               </label>
             </div>
-
-            <div id="sameStyleInfo" class="small muted" style="margin-top:8px;">
-              Se usará el mismo estilo que enlatado:
-              <strong id="sameStyleName">—</strong>
+            <div class="small muted" id="labelHint" style="margin-top:.25rem;">
+              Elegí marca y estilo para usar las etiquetas correspondientes.
             </div>
           </div>
 
-          <div class="field span-2" id="customLabelGroup" style="display:none;">
-            <label>Etiqueta personalizada</label>
-            <select id="customLabelSelect">
-              <option value="">Cargando...</option>
-            </select>
-            <div class="small muted" style="margin-top:6px;">
-              Se consumirá stock de etiquetas personalizadas (marca = la de la producción, estilo = el nombre elegido).
+          <!-- Card Personalizada -->
+          <div class="card soft" id="customLabelBox" style="display:none;">
+            <label class="field">
+              <span>Etiqueta personalizada</span>
+              <select id="customLabelSelect">
+                <option value="">Cargando...</option>
+              </select>
+            </label>
+            <div class="small muted" style="margin-top:.25rem;">
+              Se consumirá stock de la <strong>etiqueta por nombre</strong>.
             </div>
           </div>
         </div>
 
-        <div class="modal__footer">
-          <button id="cancelLabelProd" class="btn" type="button">Cancelar</button>
-          <button id="submitLabelProd" class="btn primary" type="submit">Guardar</button>
-        </div>
+        <footer class="modal__footer">
+          <div class="muted small">↵ Enter guarda • Esc cancela</div>
+          <div style="display:flex;gap:.5rem;">
+            <button id="cancelLabelProd" class="btn" type="button">Cancelar</button>
+            <button id="submitLabelProd" class="btn primary" type="submit">Guardar</button>
+          </div>
+        </footer>
       </form>
     </div>
   </div>
+
 </body>
 </html>

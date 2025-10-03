@@ -92,7 +92,7 @@
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:18px;">Cargando...</td></tr>';
 
-    const rows = await window.SBData.listStyles(); // {brandId, styleId, name, color, showAlways, brandName}
+    const rows = await window.SBData.listStyles(); // {brandId, styleId, name, color, showAlways, brandName, productionStyle}
     STATE.styles = rows || [];
 
     if (!rows.length){
@@ -115,6 +115,7 @@
         <tr>
           <td>${r.brandName || ''}</td>
           <td>${r.name || ''}</td>
+          <td>${r.productionStyle || ''}</td>
           <td>${sw}</td>
           <td>${r.showAlways ? 'Sí' : 'No'}</td>
         </tr>
@@ -155,39 +156,55 @@
       // submit nuevo estilo
       on(qs('#styleForm'), 'submit', async (ev)=>{
         ev.preventDefault();
+        const form = ev.currentTarget || qs('#styleForm');
+
+        // --- leer valores
+        const brandId    = (qs('#brandSelect')?.value || '').toString();
+        const name       = (qs('#styleName')?.value || '').toString().trim();
+        const colorInput = qs('#styleColor');
+        const color      = (colorInput?.value || '#000000').toString();
+        const showAlways = !!qs('#styleShowAlways')?.checked;
+        const productionStyle = (qs('#productionStyleSelect')?.value || '').toString().trim();
+
+        // --- validaciones primero
+        if (!brandId || !name){
+          return Swal.fire('Completar', 'Seleccioná la marca e ingresá el nombre del estilo.', 'info');
+        }
+        if (!productionStyle){
+          return Swal.fire('Completar', 'Seleccioná el estilo de producción.', 'info');
+        }
+
+        // --- aviso si es duplicado (no bloquea: el backend actualiza)
+        if (isDuplicateStyle(brandId, name)){
+          await Swal.fire({ icon:'info', title:'Estilo existente', text:'Se actualizarán los datos del estilo.', timer:1400, showConfirmButton:false });
+        }
+
+        // --- evitar doble submit
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
         try{
-          const form = ev.currentTarget || qs('#styleForm');
-
-          const brandId    = (qs('#brandSelect')?.value || '').toString();
-          const name       = (qs('#styleName')?.value || '').toString().trim();
-          const colorInput = qs('#styleColor');
-          const color      = (colorInput?.value || '#000000').toString();
-          const showAlways = !!qs('#styleShowAlways')?.checked;
-
-          if (!brandId || !name){
-            return Swal.fire('Completar', 'Seleccioná la marca e ingresá el nombre del estilo.', 'info');
-          }
-
-          // duplicado por (marca + nombre), como en GAS
-          if (isDuplicateStyle(brandId, name)){
-            return Swal.fire('Duplicado', 'Ya existe un estilo con ese nombre para la marca.', 'warning');
-          }
-
-          await window.SBData.createStyle({ brandId, name, color, showAlways });
+          // crea o actualiza (el data-layer ya prechequea para evitar 409)
+          const res = await window.SBData.createStyle({ brandId, name, color, showAlways, productionStyle });
 
           hideModal('styleModal');
-          Toast.fire({ icon:'success', title:'Estilo creado' });
+          if (res && res.updated){
+            Toast.fire({ icon:'success', title:'Estilo actualizado' });
+          }else{
+            Toast.fire({ icon:'success', title:'Estilo creado' });
+          }
 
           // recargar tabla
           await loadStylesTable();
 
-          // limpiar form de manera segura
-          if (form && typeof form.reset === 'function') form.reset();
+          // limpiar form
+          if (typeof form.reset === 'function') form.reset();
           if (colorInput) colorInput.value = '#000000';
-
         }catch(err){
           console.error('[createStyle]', err);
-          Swal.fire('Error', 'No pude crear el estilo', 'error');
+          Swal.fire('Error', (err && err.message) ? err.message : 'No pude crear/actualizar el estilo', 'error');
+        }finally{
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
 

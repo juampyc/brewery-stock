@@ -50,12 +50,14 @@
             <tr>
               <th>Marca</th>
               <th>Estilo</th>
+              <th>Producción</th> <!-- NUEVO -->
               <th>Color</th>
               <th>Mostrar siempre</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td colspan="4" style="text-align:center;padding:18px;">Cargando...</td></tr>
+            <!-- Cambiar colspan de 4 a 5 -->
+            <tr><td colspan="5" style="text-align:center;padding:18px;">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -87,6 +89,18 @@
             <input id="styleName" type="text" required placeholder="Ej: IPA" />
           </label>
 
+          <!-- NUEVO: Estilo de producción -->
+          <label class="field">
+            <span>Estilo de producción</span>
+            <select id="productionStyleSelect" required>
+              <option value="">Seleccionar…</option>
+              <option value="HONEY">HONEY</option>
+              <option value="IPA">IPA</option>
+              <option value="PORTER">PORTER</option>
+              <option value="LAGER">LAGER</option>
+            </select>
+          </label>
+          
           <label class="field">
             <span>Color</span>
             <input id="styleColor" type="color" value="#000000" />

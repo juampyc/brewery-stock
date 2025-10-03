@@ -347,3 +347,72 @@ tr.is-busy { opacity: .6; pointer-events: none; }
 @media (max-width: 720px){
   .week-kpis { grid-template-columns: 1fr; }
 }
+
+.segmented{display:inline-flex;border:1px solid #e3e3e3;border-radius:999px;overflow:hidden}
+.segmented label{display:flex;align-items:center;gap:.45rem;padding:.35rem .8rem;cursor:pointer}
+.segmented input{display:none}
+.segmented input:checked + span{background:#f4f4f4;border-radius:999px;padding:.25rem .6rem}
+
+.card.soft{background:#fafafa;border:1px solid #eee;border-radius:14px;padding:12px}
+.searchbox{border:1px solid #e6e6e6;border-radius:10px;padding:.35rem .6rem;font:inherit;outline:0}
+.searchbox:focus{border-color:#bdbdbd}
+#labelStyleSelect option{padding:.25rem .4rem}
+.badge{display:inline-block;padding:.15rem .45rem;border-radius:999px;border:1px solid #ddd;font-size:.8em}
+.option-meta{float:right;opacity:.6;font-size:.85em}
+
+/* Pills del selector de modo */
+.segmented{display:inline-flex;border:1px solid var(--border,#2c2c2c);border-radius:999px;overflow:hidden;background:transparent}
+.segmented label{display:flex;align-items:center;gap:.45rem;padding:.35rem .8rem;cursor:pointer}
+.segmented input{display:none}
+.segmented input:checked + span{background:rgba(255,255,255,.06);border-radius:999px;padding:.25rem .6rem}
+
+/* Cards suaves */
+.card.soft{background:rgba(255,255,255,.04);border:1px solid var(--border,#2c2c2c);border-radius:14px;padding:12px}
+
+/* Inputs en dark */
+.searchbox,
+select{
+  width:100%;
+  background:rgba(255,255,255,.03);
+  color:inherit;
+  border:1px solid var(--border,#2c2c2c);
+  border-radius:10px;
+  padding:.5rem .6rem;
+  outline:0;
+  height:38px;
+}
+select:focus,.searchbox:focus{border-color:#6a6a6a}
+
+/* Evitar listas largas tipo <select size=...> */
+#labelStyleSelect,#customLabelSelect{height:38px}
+
+/* Fuerza controles nativos al esquema oscuro (Chrome/Edge/Win, Safari) */
+:root { color-scheme: dark; }
+select { color-scheme: dark; }
+
+/* Fondo/borde del control (cuando está cerrado) */
+select{
+  background: #121212;      /* mismo tono que tu dark */
+  color: #eaeaea;
+  border: 1px solid #2c2c2c;
+}
+
+/* Opciones (Firefox respeta esto, Chrome a veces también) */
+select option{
+  background-color: #121212;
+  color: #eaeaea;
+}
+
+/* Hover/focus visibles en dark (Firefox principalmente) */
+select option:checked,
+select option:focus,
+select option:hover{
+  background-color: #1e1e1e;
+  color: #ffffff;
+}
+
+/* (Opcional) quita brillo azul fuerte en focus del control */
+select:focus{
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.08);
+}
